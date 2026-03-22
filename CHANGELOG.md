@@ -10,6 +10,23 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [2.0.2] — 2026-03-22
+
+### 🌟 Light Theme as Default
+
+- **Change:** The dashboard now opens in **light mode** by default instead of dark mode.
+- `index.html`: `<html data-theme="dark">` → `<html data-theme="light">`
+- `app.js` theme IIFE: `setAttribute('data-theme', 'dark')` → `'light'`; `cb.checked = false` → `cb.checked = true` (checkbox checked = light mode).
+- The toggle still works in both directions; this is purely a default-state change.
+
+### 🔄 Changed
+
+- `index.html` — `data-theme` attribute: `dark` → `light`
+- `app.js` — theme IIFE: default theme set to `light`, checkbox initialised as `checked`
+- `app.js` — comment updated: "Defaults to light (v2.0.2+)"
+
+---
+
 ## 🔖 [2.0.1] — 2026-03-22
 
 ### 🐛 Hotfix — SPF Colour Logic · More Menu Clickability · Theme Toggle Position

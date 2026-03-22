@@ -6,7 +6,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-2.0.1-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-2.0.2-brightgreen?style=for-the-badge)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-no_server_needed-blue?style=for-the-badge)
 
 **Open-source uptime, DNS, SSL and latency monitor. One HTML file. Zero dependencies.**
@@ -48,7 +48,7 @@ A **self-hosted infrastructure dashboard** that monitors uptime, DNS records, SS
 
 - 🔍 **Live DNS checks** via Cloudflare DoH (HTTPS, no CORS issues)
 - 🔐 **PIN-protected** dashboard (SHA-256 hashed — no plaintext stored)
-- 🌓 **Dark / Light mode** toggle
+- 🌓 **Light / Dark mode** toggle (light by default)
 - ⚡ **Progressive scan** — rows light up one batch at a time as results arrive
 - 🔄 **Per-row refresh** — re-scan any single domain with the ↺ button
 - ⏱️ **Auto-refresh** every 3 minutes with live countdown
@@ -247,6 +247,9 @@ On startup, `loadDomainList()` tries `fetch('./domains.list')`. If the file is p
 ## 📝 Changelog
 
 > Full changelog: **[CHANGELOG.md](./CHANGELOG.md)**
+
+### 🔖 v2.0.2 — 2026-03-22
+- 🌟 **feat:** Light theme is now the default on first load
 
 ### 🔖 v2.0.1 — 2026-03-22
 - 🐛 **fix:** SPF badge — both `~all` and `-all` now render green; only missing SPF is red

@@ -168,13 +168,13 @@ document.addEventListener('keydown', function(e) {
 /* ────────────────────────────────────────────────────────────────
    3. THEME SWITCH
    checkbox unchecked = dark mode, checked = light mode.
-   Defaults to dark. No storage — state lives in the checkbox.
+   Defaults to light (v2.0.2+). No storage — state lives in the checkbox.
    ──────────────────────────────────────────────────────────────── */
 (function() {
-  document.documentElement.setAttribute('data-theme', 'dark');
+  document.documentElement.setAttribute('data-theme', 'light');
   var cb = document.getElementById('theme-checkbox');
   if (cb) {
-    cb.checked = false;
+    cb.checked = true; /* checked = light mode */
     cb.addEventListener('change', function() {
       document.documentElement.setAttribute('data-theme', this.checked ? 'light' : 'dark');
     });
