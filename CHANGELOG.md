@@ -10,6 +10,23 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [2.1.1] — 2026-03-22
+
+### 🐛 Hotfix — Correct GitHub Repository URLs
+
+- **Issue:** Two links in `index.html` still used the `your-org` placeholder URL (`https://github.com/your-org/...`) left over from the open-source scaffold:
+  - Footer `GitHub ↗` link (line ~350)
+  - Help/info modal `⭐ View on GitHub` button (line ~441)
+- **Fix:** Both replaced with `https://github.com/paulfxyz/the-all-seeing-eye`
+- The More ⋮ dropdown GitHub link was already correct since v2.0.0.
+
+### 🐛 Fixed
+
+- `index.html` — footer GitHub link: `your-org/all-seeing-eye` → `paulfxyz/the-all-seeing-eye`
+- `index.html` — help modal GitHub link: `your-org/the-all-seeing-eye` → `paulfxyz/the-all-seeing-eye`
+
+---
+
 ## 🔖 [2.1.0] — 2026-03-22
 
 ### 🔐 Persistent Settings · Auto-scan on Login · PHP Config Layer

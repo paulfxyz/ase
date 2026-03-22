@@ -6,7 +6,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-2.1.0-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-2.1.1-brightgreen?style=for-the-badge)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-no_server_needed-blue?style=for-the-badge)
 
 **Open-source uptime, DNS, SSL and latency monitor. One HTML file. Zero dependencies.**
@@ -278,6 +278,9 @@ The skeleton → progressive fill is intentional UX: the user sees their domains
 ## 📝 Changelog
 
 > Full changelog: **[CHANGELOG.md](./CHANGELOG.md)**
+
+### 🔖 v2.1.1 — 2026-03-22
+- 🐛 **fix:** All GitHub repo URLs in the UI now point to `paulfxyz/the-all-seeing-eye` (footer, help modal were using `your-org` placeholder)
 
 ### 🔖 v2.1.0 — 2026-03-22
 - 🔐 **feat:** PIN now persists across all browsers + incognito via `ase_config.json` (config-write.php)
