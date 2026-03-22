@@ -10,6 +10,56 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [1.4.0] — 2026-03-22
+
+### 🐛 SSL Enrichment + Refresh Visual Feedback + Standalone Build
+
+---
+
+#### SSL Enrichment for domains.list domains
+
+- **The problem:** Domains loaded from `domains.list` (custom user watchlists) get `sslExpiry: null` from `loadDomainList()` since they're not in the BUILTIN top-30. The `fetchSSLExpiry()` enrichment was gated on `!entry.sslExpiry`, which is correct — BUT `crt.sh` was timing out for many small/private domains. The user saw `—` in every SSL cell.
+- **The fix:**
+  - `_sslChecked` set added — tracks which domains have been queried this session so we don't re-fire crt.sh on every refresh cycle (was: every 3-minute auto-refresh re-queried every domain).
+  - crt.sh timeout reduced from 8s → 5s.
+  - `_sslChecked` is reset on `loadDomainList()` so a fresh page load always retries.
+  - SSL enrichment now correctly fires for ALL domains with null expiry, including those loaded from a user's `domains.list`.
+
+#### Refresh Button — Clear Visual Feedback
+
+- **The problem:** Clicking Refresh showed no immediate UI change. Rows dimmed and undimmed but the button itself gave no feedback.
+- **The fix:** `triggerRefresh()` now:
+  - Sets the button to a spinning icon + "Checking…" text immediately on click.
+  - Disables the button to prevent double-click.
+  - Re-enables and restores the original button content when `checkAll()` completes.
+  - Shows "⏳ Wait Ns" if clicked within the rate-limit window.
+  - `setRefreshBtnLoading()` / `setRefreshBtnNormal()` are standalone helper functions.
+
+#### Standalone Single-File Build (`index.standalone.html`)
+
+- **The problem:** `up.paulfleury.com` was running the old monolithic `index.html` without `app.css`/`app.js`. Uploading just `index.html` after the v1.3.0 split would break the site.
+- **The fix:** `index.standalone.html` — a self-contained single-file build that inlines `app.css` and `app.js` directly. Upload this one file and the site works with zero dependencies (besides Google Fonts CDN).
+- **Both options available:**
+  - `index.standalone.html` → single-file deploy, drop on any server
+  - `index.html` + `app.css` + `app.js` → modular deploy, better caching
+
+### ✨ Added
+
+- **`index.standalone.html`** — self-contained single-file build (CSS + JS inlined)
+- **`_sslChecked` dict** — session cache to prevent re-querying crt.sh on every refresh
+- **`setRefreshBtnLoading()`** — sets Refresh button to spinning/disabled state
+- **`setRefreshBtnNormal()`** — restores Refresh button to original state
+
+### 🔄 Changed
+
+- `checkDomain()` — SSL enrichment now uses `_sslChecked[domain]` guard; fires for all null-expiry domains
+- `loadDomainList()` — resets `_sslChecked` on each call
+- `fetchSSLExpiry()` — timeout reduced from 8000ms to 5000ms
+- `triggerRefresh()` — now calls `setRefreshBtnLoading()` before scan and `.then(setRefreshBtnNormal)` after
+- Live state block — `_sslChecked = {}` added as a top-level variable
+
+---
+
 ## 🔖 [1.3.0] — 2026-03-22
 
 ### 📦 Modular Architecture + Loading Animation + .htaccess Guide
