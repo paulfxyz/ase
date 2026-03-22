@@ -123,12 +123,13 @@ open index.html
 
 The default PIN is **`123456`**.
 
+On your **first login**, after entering `123456` you will be automatically prompted to set a personal PIN — you can set one or click "Skip" to keep using the default. **Change it before deploying publicly.**
+
+Once inside the dashboard, the **⚙️ cog icon** in the header lets you change your PIN at any time — enter your current PIN, then your new PIN twice.
+
 **Change it before deploying publicly** — see [INSTALL.md](./INSTALL.md#changing-the-pin).
 
 The PIN is stored as a SHA-256 hash in `index.html` — no plaintext, ever.
-
----
-
 ## ⚙️ Automated Checks (cron)
 
 The dashboard auto-refreshes every 3 minutes when open. For 24/7 monitoring:
@@ -200,6 +201,11 @@ On startup, the app tries `fetch('./domains.list')`. If the file exists and is n
 ## 📝 Changelog
 
 > Full changelog: **[CHANGELOG.md](./CHANGELOG.md)**
+
+### 🔖 v1.8.0 — 2026-03-22
+- 🔐 **feat:** `ssl-check.php` — same-origin PHP endpoint for fast, reliable SSL cert checks (replaces crt.sh as primary source)
+- ⚙️ **feat:** PIN change modal — cog icon in header: enter current PIN → new PIN → confirm
+- 🔑 **docs:** README explains first-login PIN prompt and ⚙️ change flow
 
 ### 🔖 v1.7.0 — 2026-03-22
 - 🐛 **fix:** Refresh countdown now **auto-fires** `checkAll()` when it expires — no second click needed

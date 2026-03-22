@@ -10,6 +10,50 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [1.8.0] — 2026-03-22
+
+### 🔐 Server-Side SSL Check + PIN Change Modal
+
+---
+
+#### ssl-check.php — Reliable Server-Side SSL Expiry
+
+- **The problem:** `crt.sh` certificate transparency API was failing for all of Paul's 34 private domains (timeouts, gaps in CT log coverage). The browser JS cannot open raw TLS connections, making purely client-side SSL checking unreliable for non-popular domains.
+- **The solution:** `ssl-check.php` — a lightweight PHP endpoint uploaded alongside `index.html`. The browser calls `./ssl-check.php?domain=example.com` instead of crt.sh. PHP uses `stream_socket_client()` to open a real TLS connection to port 443, reads the peer certificate with `openssl_x509_parse()`, and returns JSON with expiry date, issuer name, and days remaining. Same approach as `update-stats.php` but callable per-domain from the browser.
+- **Strategy (priority order):**
+  1. `ssl-check.php` (same-origin, fast, reliable for any domain, requires PHP host)
+  2. `crt.sh` (fallback for static hosts; can timeout on obscure domains)
+  3. `null` → SSL shows "—" (run `update-stats.php` cron to generate `domains.json`)
+- **Security:** Input validated to hostname chars only; file-based rate limit (1 req/domain/sec); TLS verification disabled (we want cert data even for expired certs); CORS header set.
+- **Caching:** `Cache-Control: max-age=3600` — browser caches the result for 1 hour.
+
+#### ⚙️ PIN Change Modal
+
+- **New cog icon** (⚙️) added to the dashboard header, next to the `?` help button.
+- Clicking it opens a three-phase PIN change flow:
+  1. **Enter current PIN** — verified against `PIN_HASH` via SHA-256
+  2. **Enter new PIN** — stored in memory
+  3. **Confirm new PIN** — must match; on success, `PIN_HASH` updated and `spPersistHash()` attempts to rewrite `index.html`
+- Full **keyboard support** (digits + Backspace + Escape to close)
+- On success: `showPinSuccessModal()` shown (same as first-login set-PIN)
+- Error states: wrong current PIN flashes red, mismatched confirmation resets to step 2
+
+### ✨ Added
+
+- **`ssl-check.php`** — server-side SSL expiry endpoint
+- **`openChangePinModal()` / `closeChangePinModal()`** — modal open/close
+- **`cpDigit()` / `cpDelete()` / `cpCheck()`** — numpad handlers for change-PIN flow
+- **`cpUpdateDots()` / `cpSetTitles()`** — UI state helpers
+- **Keyboard handler** for change-PIN modal (digits, Backspace, Escape)
+- **⚙️ button** in header HTML
+
+### 🔄 Changed
+
+- `fetchSSLExpiry()` — now tries `ssl-check.php` first (6s timeout), falls back to `crt.sh` (5s timeout)
+- README: `## 🔑 Default PIN` section updated with first-login prompt explanation and ⚙️ change-flow note
+
+---
+
 ## 🔖 [1.7.0] — 2026-03-22
 
 ### 🐛 Refresh Fix + Category Removed + Better NS/MX Labels

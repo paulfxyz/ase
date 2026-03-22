@@ -776,51 +776,58 @@ function setRowLoading(domain, loading) {
  */
 
 /**
- * Fetch SSL certificate expiry for a domain via crt.sh.
+ * Fetch SSL certificate expiry for a domain.
  *
- * crt.sh is a certificate transparency log search service.
- * We query for all valid certs for the domain, sort by expiry
- * (newest first), and return the soonest-expiring valid cert.
+ * Priority order:
+ *  1. ssl-check.php  — same-origin PHP endpoint, real TLS handshake.
+ *                      Fastest and most reliable. Works for any domain.
+ *                      Available on PHP hosts (SiteGround etc.).
+ *  2. crt.sh API     — certificate transparency logs, public API.
+ *                      Fallback when ssl-check.php is not present.
+ *                      Can time out on obscure/private domains.
+ *  3. null           — SSL column shows "—". Run update-stats.php to
+ *                      generate domains.json which seeds SSL on load.
  *
- * @param  {string} domain — bare domain name
+ * @param  {string} domain
  * @returns {Promise<{expiry:string, issuer:string}|null>}
- *          ISO date string + short issuer name, or null on failure
  */
 async function fetchSSLExpiry(domain) {
+
+  /* Strategy 1: ssl-check.php on same server */
   try {
-    /* Use ?q=domain to get all certs including wildcards and SANs.
-     * exclude=expired avoids loading thousands of old records. */
-    var url = 'https://crt.sh/?q=' + encodeURIComponent(domain) + '&output=json&exclude=expired';
-    var res = await fetch(url, {
-      signal: AbortSignal.timeout(5000) /* generous timeout — crt.sh can be slow */
+    var phpRes = await fetch('./ssl-check.php?domain=' + encodeURIComponent(domain), {
+      signal: AbortSignal.timeout(6000)
     });
+    /* 404 = file not uploaded; fall through to crt.sh */
+    if (phpRes.ok) {
+      var phpData = await phpRes.json();
+      if (phpData && phpData.expiry && !phpData.error) {
+        return { expiry: phpData.expiry, issuer: phpData.issuer || '' };
+      }
+    }
+    if (phpRes.status !== 404) throw new Error('php-error');
+  } catch(phpErr) {
+    /* PHP not available or network error — try crt.sh */
+  }
+
+  /* Strategy 2: crt.sh certificate transparency */
+  try {
+    var url = 'https://crt.sh/?q=' + encodeURIComponent(domain) + '&output=json&exclude=expired';
+    var res  = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     var certs = await res.json();
     if (!Array.isArray(certs) || certs.length === 0) return null;
-
-    var now = new Date();
-
-    /* Filter to certs that are genuinely valid today, then sort
-     * by expiry descending so we pick the one expiring latest. */
+    var now   = new Date();
     var valid = certs
       .filter(function(c) { return c.not_after && new Date(c.not_after) > now; })
       .sort(function(a, b) { return new Date(b.not_after) - new Date(a.not_after); });
-
     if (valid.length === 0) return null;
-
-    var best = valid[0];
-
-    /* Parse expiry — crt.sh returns ISO format: "2026-05-18T12:00:00" */
-    var expiry = best.not_after.split('T')[0]; /* keep YYYY-MM-DD only */
-
-    /* Detect issuer — Let's Encrypt uses CN starting with E5/E6/E7/R3/R10/R11 */
-    var cn = (best.issuer_name || '').replace(/.*CN=/, '').replace(/,.*/, '').trim();
-    var isLE = /^(R\d+|E\d+|Let'?s Encrypt)/i.test(cn);
-    var issuer = isLE ? 'LE' : (cn.length > 20 ? cn.slice(0, 20) : cn);
-
-    return { expiry: expiry, issuer: issuer };
+    var best  = valid[0];
+    var expiry = (best.not_after || '').split('T')[0];
+    var cn    = (best.issuer_name || '').replace(/.*CN=/, '').replace(/,.*/, '').trim();
+    var isLE  = /^(R\d+|E\d+)/i.test(cn) || cn.toLowerCase().indexOf("let") >= 0;
+    return { expiry: expiry, issuer: isLE ? 'LE' : cn.slice(0, 20) };
   } catch(e) {
-    /* Timeout or CORS error — fail silently */
     return null;
   }
 }
@@ -1663,6 +1670,127 @@ async function spPersistHash(newHash) {
     return false;
   }
 }
+
+
+
+/* ────────────────────────────────────────────────────────────────
+   CHANGE PIN MODAL
+   Three-phase flow:
+     Phase 1: Enter CURRENT PIN (verify it's correct)
+     Phase 2: Enter NEW PIN
+     Phase 3: Confirm NEW PIN (must match phase 2)
+   On success: updates PIN_HASH in memory, attempts to persist
+   to index.html via HTTP PUT (same as the set-PIN flow).
+   ──────────────────────────────────────────────────────────────── */
+
+var CP_PHASE   = 1;  /* 1=current, 2=new, 3=confirm */
+var cpBuffer   = ''; /* current input buffer */
+var cpNewPin   = ''; /* stored new PIN from phase 2 */
+
+var CP_TITLES = {
+  1: 'Change PIN',
+  2: 'Change PIN',
+  3: 'Change PIN'
+};
+var CP_SUBS = {
+  1: 'Enter your current PIN',
+  2: 'Enter your new PIN',
+  3: 'Confirm your new PIN'
+};
+
+function openChangePinModal() {
+  CP_PHASE = 1; cpBuffer = ''; cpNewPin = '';
+  cpUpdateDots();
+  var el = document.getElementById('cp-error');
+  if (el) el.textContent = '';
+  cpSetTitles();
+  var overlay = document.getElementById('change-pin-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function closeChangePinModal() {
+  var overlay = document.getElementById('change-pin-overlay');
+  if (overlay) overlay.style.display = 'none';
+  CP_PHASE = 1; cpBuffer = ''; cpNewPin = '';
+}
+
+function cpSetTitles() {
+  var t = document.getElementById('cp-title');
+  var s = document.getElementById('cp-subtitle');
+  if (t) t.textContent = CP_TITLES[CP_PHASE] || 'Change PIN';
+  if (s) s.textContent = CP_SUBS[CP_PHASE] || '';
+}
+
+function cpUpdateDots(mode) {
+  for (var i = 0; i < 6; i++) {
+    var dot = document.getElementById('cp-dot-' + i);
+    if (!dot) continue;
+    dot.className = 'pin-dot';
+    if (mode === 'error') dot.classList.add('error');
+    else if (i < cpBuffer.length) dot.classList.add('filled');
+  }
+}
+
+function cpDigit(d) {
+  if (cpBuffer.length >= 6) return;
+  cpBuffer += d;
+  cpUpdateDots();
+  document.getElementById('cp-error').textContent = '';
+  if (cpBuffer.length === 6) setTimeout(cpCheck, 150);
+}
+
+function cpDelete() {
+  cpBuffer = cpBuffer.slice(0, -1);
+  cpUpdateDots();
+  document.getElementById('cp-error').textContent = '';
+}
+
+function cpCheck() {
+  if (CP_PHASE === 1) {
+    /* Verify current PIN */
+    if (sha256(cpBuffer) !== PIN_HASH) {
+      cpUpdateDots('error');
+      document.getElementById('cp-error').textContent = 'Incorrect PIN — try again';
+      setTimeout(function() { cpBuffer = ''; cpUpdateDots(); }, 700);
+      return;
+    }
+    /* Current PIN correct — move to new PIN */
+    CP_PHASE = 2; cpBuffer = '';
+    cpUpdateDots(); cpSetTitles();
+
+  } else if (CP_PHASE === 2) {
+    /* Store new PIN, move to confirmation */
+    cpNewPin = cpBuffer;
+    CP_PHASE = 3; cpBuffer = '';
+    cpUpdateDots(); cpSetTitles();
+
+  } else if (CP_PHASE === 3) {
+    /* Confirm new PIN */
+    if (cpBuffer !== cpNewPin) {
+      cpUpdateDots('error');
+      document.getElementById('cp-error').textContent = "PINs don't match — try again";
+      setTimeout(function() { cpBuffer = ''; CP_PHASE = 2; cpNewPin = ''; cpUpdateDots(); cpSetTitles(); }, 700);
+      return;
+    }
+    /* PINs match — apply change */
+    var newHash = sha256(cpNewPin);
+    PIN_HASH = newHash;
+    closeChangePinModal();
+    /* Attempt to persist */
+    spPersistHash(newHash).then(function(saved) {
+      showPinSuccessModal(saved ? null : newHash);
+    });
+  }
+}
+
+/* Keyboard support for Change PIN modal */
+document.addEventListener('keydown', function(e) {
+  var overlay = document.getElementById('change-pin-overlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  if (e.key >= '0' && e.key <= '9') { cpDigit(e.key); }
+  if (e.key === 'Backspace') { e.preventDefault(); cpDelete(); }
+  if (e.key === 'Escape') { closeChangePinModal(); }
+});
 
 
 /* ────────────────────────────────────────────────────────────────
