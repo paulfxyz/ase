@@ -230,9 +230,9 @@ On startup, the app tries `fetch('./domains.list')`. If the file exists and is n
 
 👉 **[Download the ZIP](https://github.com/paulfxyz/the-all-seeing-eye/archive/refs/heads/main.zip)**
 
-**Unzip and upload `index.html` + `app.css` + `app.js` + `domains.list` to your server.** See [INSTALL.md](./INSTALL.md) for the full guide.
----
+Unzip and upload `index.html` + `app.css` + `app.js` + `domains.list` to your server. See [INSTALL.md](./INSTALL.md) for the full guide.
 
+---
 ## 🤝 Contributing
 
 Pull requests are very welcome! Ideas: SSL expiry live check, ping history graphs, Slack/email alerts, multi-user support, mobile layout improvements.
