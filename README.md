@@ -81,13 +81,16 @@ Results appear **progressively** as each batch of 5 domains resolves — you see
 
 | File | Purpose |
 |---|---|
-| `index.html` | The entire application — one self-contained HTML file |
-| `domains.list` | Your domain watchlist — one domain per line |
-| `domains.stats` | CSV snapshot updated after every check run |
-| `domains.json` | JSON snapshot written by the PHP cron script |
-| `update-stats.php` | Server-side cron script — no chmod tricks required |
-| `webhook.do` | Headless endpoint for external cron services |
-| `INSTALL.md` | Full installation guide |
+| `index.standalone.html` | **← Use this for deployment.** Single-file build with CSS + JS inlined — just rename to `index.html` and upload. No other files needed. |
+| `index.html` | Modular shell — loads `app.css` + `app.js` as separate files. Better for development; browsers cache assets independently. |
+| `app.css` | All styles (41 KB) — loaded by the modular `index.html` |
+| `app.js` | All JavaScript (82 KB) — loaded by the modular `index.html` |
+| `domains.list` | Your domain watchlist — one domain per line, `#` for comments |
+| `domains.stats` | CSV snapshot updated after every refresh (requires server write access) |
+| `domains.json` | JSON snapshot written by `update-stats.php` — the browser reads this for SSL expiry dates |
+| `update-stats.php` | Server-side cron script — real TLS cert checks, writes `domains.json` |
+| `webhook.do` | Headless endpoint for external cron services (cron-job.org etc.) |
+| `INSTALL.md` | Full installation guide with SiteGround + cron-job.org instructions |
 
 ---
 
