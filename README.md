@@ -6,7 +6,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-2.3.0-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-2.3.1-brightgreen?style=for-the-badge)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-no_server_needed-blue?style=for-the-badge)
 
 **Open-source uptime, DNS, SSL and latency monitor. One HTML file. Zero dependencies.**
@@ -278,6 +278,9 @@ The skeleton → progressive fill is intentional UX: the user sees their domains
 ## 📝 Changelog
 
 > Full changelog: **[CHANGELOG.md](./CHANGELOG.md)**
+
+### 🔖 v2.3.1 — 2026-03-22
+- 🚨 **fix:** CRITICAL — unclosed `<div>` in webhook modal broke entire DOM (set-PIN flow, dashboard unreachable)
 
 ### 🔖 v2.3.0 — 2026-03-22
 - 📱 **feat:** Full mobile UI overhaul — table horizontal scroll with touch momentum, taller row tap targets, responsive header/controls

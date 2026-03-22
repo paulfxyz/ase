@@ -10,6 +10,17 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [2.3.1] — 2026-03-22
+
+### 🚨 Critical Hotfix — Broken DOM (unclosed div)
+
+- **Root cause:** The v2.3.0 modal restructuring introduced a missing `</div>` in the webhook modal's scroll body wrapper. The unclosed `<div>` at line 369 caused all HTML after it — including the set-PIN overlay, dashboard, and every other modal — to be swallowed into that div's subtree, making them non-functional.
+- **Symptom:** After entering PIN `123456`, nothing happened — the set-PIN prompt never appeared. The dashboard was unreachable.
+- **Fix:** Added the missing `</div>` closing the scroll body wrapper before the sticky Close button footer.
+- **Verified:** HTML parser confirms 0 unclosed structural elements after fix.
+
+---
+
 ## 🔖 [2.3.0] — 2026-03-22
 
 ### 📱 Mobile UI Overhaul · Modal Fix
