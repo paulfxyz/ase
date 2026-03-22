@@ -366,13 +366,14 @@
 <!-- ════════════════════════════════════════════════════════════
      WEBHOOK MODAL
 ═════════════════════════════════════════════════════════════ -->
-<div id="webhook-modal" style="display:none;position:fixed;inset:0;z-index:8500;background:rgba(15,17,23,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center"
-     onclick="if(event.target===this)closeWebhookModal()" class="">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:var(--space-8);width:min(560px,94vw);box-shadow:var(--shadow-lg),var(--shadow-glow);animation:card-in 0.22s cubic-bezier(.34,1.56,.64,1)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5)">
+<div id="webhook-modal" style="display:none;position:fixed;inset:0;z-index:8500;background:rgba(15,17,23,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--space-4)"
+     onclick="if(event.target===this)closeWebhookModal()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);width:min(560px,94vw);box-shadow:var(--shadow-lg),var(--shadow-glow);animation:card-in 0.22s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-5) var(--space-6) var(--space-4);position:sticky;top:0;background:var(--surface);z-index:1;border-bottom:1px solid var(--border-soft)">
       <h3 style="font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;letter-spacing:-0.02em">🔗 Webhook / Cron Setup</h3>
-      <button onclick="closeWebhookModal()" style="color:var(--text-faint);font-size:20px;cursor:pointer;background:none;border:none">✕</button>
+      <button onclick="closeWebhookModal()" class="modal-close-btn" aria-label="Close modal">✕</button>
     </div>
+    <div style="padding:var(--space-5) var(--space-6);overflow-y:auto;-webkit-overflow-scrolling:touch">
     <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-4);line-height:1.7">
       Point any HTTP cron service at <code style="background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-family:var(--font-mono);font-size:12px">yourdomain.com/webhook.do</code> to trigger an automatic check and update <code style="background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-family:var(--font-mono);font-size:12px">domains.stats</code> without opening the dashboard.
     </p>
@@ -390,6 +391,9 @@
     <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);font-size:var(--text-xs);font-family:var(--font-mono);color:var(--text-muted);line-height:1.9">
       <div style="color:var(--text-faint);margin-bottom:var(--space-2);font-family:var(--font-display);letter-spacing:.06em;font-size:10px;text-transform:uppercase">Server route (Apache .htaccess)</div>
       RewriteRule ^webhook\.do$ index.html [L]
+    </div><!-- /scroll body -->
+    <div style="padding:var(--space-3) var(--space-6);border-top:1px solid var(--border-soft);background:var(--surface)">
+      <button onclick="closeWebhookModal()" class="btn" style="width:100%">Close</button>
     </div>
   </div>
 </div>
@@ -397,13 +401,14 @@
 <!-- ════════════════════════════════════════════════════════════
      INFO / HELP MODAL
 ═════════════════════════════════════════════════════════════ -->
-<div id="info-modal" style="display:none;position:fixed;inset:0;z-index:8500;background:rgba(15,17,23,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;overflow-y:auto;padding:var(--space-6) var(--space-4)"
+<div id="info-modal" style="display:none;position:fixed;inset:0;z-index:8500;background:rgba(15,17,23,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--space-4)"
      onclick="if(event.target===this)closeInfoModal()">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:var(--space-8);width:min(620px,94vw);box-shadow:var(--shadow-lg),var(--shadow-glow);animation:card-in 0.22s cubic-bezier(.34,1.56,.64,1)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5)">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);width:min(620px,94vw);box-shadow:var(--shadow-lg),var(--shadow-glow);animation:card-in 0.22s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-5) var(--space-6) var(--space-4);position:sticky;top:0;background:var(--surface);z-index:1;border-bottom:1px solid var(--border-soft)">
       <h3 style="font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;letter-spacing:-0.02em">👁 How It Works</h3>
-      <button onclick="closeInfoModal()" style="color:var(--text-faint);font-size:20px;cursor:pointer;background:none;border:none">✕</button>
+      <button onclick="closeInfoModal()" class="modal-close-btn" aria-label="Close modal">✕</button>
     </div>
+    <div style="padding:var(--space-5) var(--space-6);overflow-y:auto;-webkit-overflow-scrolling:touch">
 
     <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-5);line-height:1.7">
       <strong style="color:var(--text)">The All Seeing Eye</strong> is a self-hosted, open-source uptime, DNS, SSL and latency monitor. Everything runs in the browser — no server-side code needed for basic use.
@@ -444,6 +449,10 @@
         ⭐ View on GitHub
       </a>
       <span style="font-size:var(--text-xs);color:var(--text-faint)">MIT License · No tracking · No cookies</span>
+    </div>
+    </div><!-- /scroll body -->
+    <div style="padding:var(--space-3) var(--space-6);border-top:1px solid var(--border-soft);background:var(--surface)">
+      <button onclick="closeInfoModal()" class="btn" style="width:100%">Close</button>
     </div>
   </div>
 </div>

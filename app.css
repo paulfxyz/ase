@@ -1057,6 +1057,91 @@
       .search-input { width: 160px; }
     }
 
+
+
+    /* ── Modal close button — 44×44 tap target on all devices ── */
+    .modal-close-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      padding: var(--space-2);
+      margin: calc(-1 * var(--space-2));   /* extend hit area without shifting layout */
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      background: none;
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--text-faint);
+      transition: color var(--ease), background var(--ease);
+    }
+    .modal-close-btn:hover { color: var(--text); background: var(--surface-2); }
+
+    /* ── Mobile-specific improvements ── */
+    @media (max-width: 640px) {
+
+      /* Table: always-visible horizontal scroll with touch momentum */
+      .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        /* Subtle "more content" shadow on right edge */
+        background:
+          linear-gradient(to right, var(--bg) 20px, transparent 20px) left,
+          linear-gradient(to left,  var(--bg) 20px, transparent 20px) right,
+          radial-gradient(ellipse at left,  rgba(0,0,0,0.15) 0%, transparent 70%) left,
+          radial-gradient(ellipse at right, rgba(0,0,0,0.15) 0%, transparent 70%) right;
+        background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+        background-repeat: no-repeat;
+        background-attachment: local, local, scroll, scroll;
+      }
+
+      /* Table rows: taller for easier tapping */
+      table tbody tr { min-height: 48px; }
+      table tbody td {
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+
+      /* Header: wrap to two lines if needed on very small screens */
+      .header-actions {
+        gap: var(--space-2);
+      }
+      .header-actions .btn {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+        min-height: 44px;
+      }
+
+      /* Status bar: allow wrap on small screens */
+      .status-bar {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+
+      /* Footer links: larger tap targets */
+      footer a {
+        display: inline-block;
+        padding: 6px 0;
+        min-height: 44px;
+        line-height: 44px;
+      }
+
+      /* Controls row: wrap filters below search on mobile */
+      .controls {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+    }
+
+    /* ── Very small screens (< 400px) ── */
+    @media (max-width: 400px) {
+      .header-actions .btn span.btn-label { display: none; } /* hide text, keep icon */
+      table { min-width: 800px; } /* reduce min-width slightly on small phones */
+    }
+
+
     /* ═══════════════════════════════════════════════════════════
        SKELETON LOADER (shown while initial DNS check runs)
     ═══════════════════════════════════════════════════════════ */

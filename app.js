@@ -1761,7 +1761,10 @@ function checkWebhookMode() {
 /* WEBHOOK + INFO MODALS */
 function openWebhookModal() {
   var m = document.getElementById('webhook-modal');
-  if (m) m.classList.add('open');
+  if (!m) return;
+  m.classList.add('open');
+  /* Always scroll to top so the sticky header + close button are visible on mobile */
+  m.scrollTop = 0;
 }
 function closeWebhookModal() {
   var m = document.getElementById('webhook-modal');
@@ -1769,7 +1772,10 @@ function closeWebhookModal() {
 }
 function openInfoModal() {
   var m = document.getElementById('info-modal');
-  if (m) m.classList.add('open');
+  if (!m) return;
+  m.classList.add('open');
+  /* Always scroll to top so the sticky header + close button are visible on mobile */
+  m.scrollTop = 0;
 }
 function closeInfoModal() {
   var m = document.getElementById('info-modal');

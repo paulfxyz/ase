@@ -10,6 +10,77 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [2.3.0] — 2026-03-22
+
+### 📱 Mobile UI Overhaul · Modal Fix
+
+---
+
+#### Root causes (from mobile audit at 390×844px)
+
+1. **Help modal close button at -175px** — the inner card was taller than the viewport, so the title bar + X button scrolled above the fold immediately on open. User was effectively trapped.
+2. **Modal `scrollTop` not reset** — `openInfoModal()` and `openWebhookModal()` called `classList.add('open')` but never reset scroll position. On second open the modal remembered its last scroll position.
+3. **X button tap area 17×32px** — far below the 44×44px minimum; on mobile this is nearly impossible to hit reliably.
+4. **Table overflow 940px off-screen** — no visible scroll affordance, `-webkit-overflow-scrolling: touch` missing.
+5. **Row height too small** — `td` cells were ~32px tall; minimum recommended tap target is 44px.
+
+#### Fix: Sticky header + scrollable body + sticky footer (all modals)
+
+Both the **Help** and **Webhook/Cron** modals are now restructured as:
+```
+┌─────────────────────────────┐
+│ [Sticky] Title bar + ✕ btn  │  ← always visible, position: sticky top:0
+├─────────────────────────────┤
+│ [Scrollable] Content        │  ← overflow-y: auto, -webkit-overflow-scrolling: touch
+│   ...                       │
+│   ...                       │
+├─────────────────────────────┤
+│ [Sticky] [    Close    ]    │  ← always visible at bottom; impossible to miss
+└─────────────────────────────┘
+```
+This means: on any screen size, the user can **always see the close button** — both at the top (X icon) and at the bottom (full-width Close button). No scrolling required to close.
+
+#### `.modal-close-btn` — 44×44px touch target
+
+New CSS class for all modal X buttons:
+- `min-width: 44px; min-height: 44px` — meets Apple/Google tap target guidelines
+- Negative margin trick: extends hit area without affecting layout
+- Hover state: background tint + text color transition
+
+#### Table: horizontal scroll with touch momentum
+
+- `-webkit-overflow-scrolling: touch` — native momentum scrolling on iOS
+- Scroll shadow overlay (CSS radial-gradient trick) — subtle visual cue that more content exists to the right
+- `background-attachment: local/scroll` combo — shadows appear/disappear as user scrolls
+
+#### Row tap targets
+
+- `td` cells: `padding-top/bottom: 12px` on mobile → row height ~48px
+- `min-height: 48px` on `tbody tr`
+
+#### Header + controls + footer
+
+- Header action buttons: `min-height: 44px` on mobile
+- Status bar: `flex-wrap: wrap` — doesn't overflow on narrow screens
+- Controls row: `flex-wrap: wrap` — filters drop below search on mobile
+- Footer links: `min-height: 44px; line-height: 44px` — proper tap targets
+
+### 🐛 Fixed
+
+- `openInfoModal()` / `openWebhookModal()` — `scrollTop = 0` on every open
+- Both modals — sticky header (title + X button always visible)
+- Both modals — sticky Close button at bottom (full-width, unmissable)
+- `✕` button — replaced inline style with `.modal-close-btn` class (44×44px)
+- Table — `-webkit-overflow-scrolling: touch` + scroll shadow overlay
+
+### 📱 Added
+
+- CSS `.modal-close-btn` — 44×44px touch target class used across all modals
+- CSS `@media (max-width: 640px)` — mobile table, header, controls, footer improvements
+- CSS `@media (max-width: 400px)` — very small phone adjustments
+
+---
+
 ## 🔖 [2.2.1] — 2026-03-22
 
 ### 🐛 Hotfix — Browser Cache Headers · Clean domains.stats · .htaccess Security
