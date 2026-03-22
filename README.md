@@ -6,7 +6,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-2.0.0-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-2.0.1-brightgreen?style=for-the-badge)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-no_server_needed-blue?style=for-the-badge)
 
 **Open-source uptime, DNS, SSL and latency monitor. One HTML file. Zero dependencies.**
@@ -172,35 +172,87 @@ Full setup guide: [INSTALL.md](./INSTALL.md)
 
 ### DNS-over-HTTPS (DoH)
 
-Instead of raw DNS sockets (blocked in browsers), the app queries [Cloudflare's DoH API](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/) over HTTPS — no CORS issues, no browser permissions, works everywhere. Each domain gets 5 parallel queries: `A`, `NS`, `MX`, `TXT`, and `_dmarc.TXT`.
+Instead of raw DNS sockets (blocked in browsers), the app queries [Cloudflare's DoH API](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/) over HTTPS — no CORS issues, no browser permissions, works everywhere. Each domain gets 5 parallel queries: `A`, `NS`, `MX`, `TXT`, and `_dmarc.TXT`. Results are parsed from Cloudflare's JSON response format (`application/dns-json`).
 
-### The SHA-256 caching bug (and fix)
-
-The original SHA-256 implementation cached its prime tables on `sha256.h` and `sha256.k` as properties of the function object. This works the first time but corrupts on subsequent calls — producing wrong hashes. The fix: a fully **stateless implementation** that recomputes primes fresh every call. No mutation, no side effects.
-
-### Why `onclick` instead of `addEventListener`
-
-The PIN numpad uses `onclick="pinDigit('1')"` directly in the HTML rather than `addEventListener`. The reason: when deployed in a sandboxed iframe (as in Perplexity Computer's preview), `DOMContentLoaded` fires before the script runs — meaning listeners attached in that callback silently never execute. Inline `onclick` attributes bypass this entirely — one click, one call, always.
+NS and MX answers are passed through pattern-matching provider detection: a lookup table maps known nameserver/mail hostnames to friendly labels (`Google`, `Cloudflare`, `SiteGround`, `ProtonMail`, `Amazon SES`…). For unknown providers, the second-level domain of the first NS/MX record is extracted and used as the label — more informative than the old `"Own"` fallback.
 
 ### Progressive batch scanning
 
-Instead of firing 30+ parallel DNS queries at once (which would look like a DoH flood and could trip firewalls), checks run in **batches of 5** with a 300ms pause between batches. After each batch, the table re-renders — you see rows come alive progressively. Total time for 30 domains: ~3–4 seconds.
+Instead of firing 30+ parallel DNS queries at once (which would look like a DoH flood and could trip firewalls), checks run in **batches of 5** with a 300ms pause between batches. After each batch the table re-renders — you see rows come alive progressively, one batch at a time. Total time for 34 domains: ~3–4 seconds.
+
+Batch size and delay are configurable constants (`DNS_BATCH_SIZE`, `DNS_BATCH_DELAY`).
+
+### SSL certificate checking — three-tier strategy
+
+The browser cannot open raw TLS sockets, so SSL expiry data comes from up to three sources, tried in priority order:
+
+1. **`ssl-check.php?domains=dom1,dom2,...` (batch, same-origin PHP)** — `fetchAllSSLExpiry()` sends a single batch request after all DNS checks complete. PHP calls `stream_socket_client()` per domain to open a real TLS handshake, reads the certificate with `openssl_x509_parse()`, and returns a JSON array. One HTTP round-trip for up to 50 domains. Fast (~50ms/domain server-side, sequential).
+
+2. **`crt.sh` per-domain (certificate transparency log lookup)** — fallback for static hosts where no PHP is available. Can time out or have gaps for low-traffic/private domains.
+
+3. **`domains.json` (written by server-side cron)** — seeded at page load from `update-stats.php` output. Gives instant SSL data on first render before any live checks run.
+
+If none of the above returns data, the SSL cell shows `—`.
+
+### Uptime persistence — cookie-based history
+
+Uptime data is stored in a browser cookie (`ase_uptime`, JSON-encoded, 1-year TTL). This was chosen over `localStorage` because localStorage is blocked in sandboxed iframes.
+
+On every `checkDomain()` result, `uptimeRecord(domain, isUp)` increments the domain's `checks` and `ups` counters and records the last-down timestamp if the domain is unreachable. `uptimeSave()` serialises the entire map back to the cookie after each full scan.
+
+On hover of the **STATUS** column, `uptimeTooltipHTML()` renders a tooltip showing:
+- Uptime percentage (1 decimal place)
+- Total checks run
+- Days monitored since first check
+- Last recorded downtime date
+
+Cookie size is auto-trimmed to the 40 most-checked domains if it approaches 4KB.
+
+### The SHA-256 caching bug (and fix)
+
+The original SHA-256 implementation cached its prime tables on `sha256.h` and `sha256.k` as properties of the function object. This works on the first call but corrupts on subsequent calls — producing wrong hashes and breaking PIN verification. The fix: a fully **stateless implementation** that recomputes primes fresh on every call. No mutation, no side effects. This is why PIN verification is reliable across multiple attempts.
+
+### Why `onclick` instead of `addEventListener`
+
+The PIN numpad uses `onclick="pinDigit('1')"` directly in the HTML rather than `addEventListener`. The reason: when deployed in a sandboxed iframe (as in Perplexity Computer's preview), `DOMContentLoaded` fires before the script is fully evaluated — meaning listeners attached in that callback silently never execute. Inline `onclick` attributes bypass this entirely — one click, one call, always.
+
+A related trap: binding the same event via *multiple* event types (e.g. both `click` and `touchstart`) causes double-firing on mobile. The PIN numpad uses only `click` (plus keyboard `keydown` handlers) to avoid this.
+
+### Header dropdown — CSS stacking context escape
+
+The sticky header (`position: sticky; z-index: 100`) creates its own CSS stacking context. Child elements, no matter how high their own `z-index`, cannot visually exceed the header's `z-index: 100` from the root document's perspective. This means a dropdown rendered inside the header would be covered by any root-level overlay above z-index 100.
+
+The fix: the dropdown uses `position: fixed` (which is positioned relative to the viewport, not the header's containing block) with `z-index: 9999`. `toggleHeaderMenu()` reads the toggle button's position via `getBoundingClientRect()` and sets `top` / `right` dynamically — so the menu always appears correctly aligned regardless of scroll position. Outside-click detection uses a `document.addEventListener('click', ...)` handler rather than a backdrop `<div>` (which would itself be trapped in the same stacking context problem).
 
 ### Rate limiting
 
-Two guards prevent accidental spam:
-- **Global:** `_checkRunning` flag blocks overlapping full scans; `CHECK_ALL_MIN_GAP` (10s) blocks re-runs too soon after the last one
-- **Per-row:** `_domainLastCheck[domain]` tracks the last per-row refresh timestamp; `CHECK_ROW_MIN_GAP` (5s) prevents hammering a single domain
+Two guards prevent accidental DNS flood:
+- **Global:** `_checkRunning` flag blocks overlapping full scans; `CHECK_ALL_MIN_GAP` (5s) prevents re-runs fired too close together
+- **Per-row:** `_domainLastCheck[domain]` timestamps every per-row refresh; `CHECK_ROW_MIN_GAP` (5s) prevents hammering a single domain
+- **Auto-refresh countdown:** When the 3-minute countdown expires it auto-fires `checkAll()` — no second click needed. The button HTML is snapshotted as `REFRESH_BTN_ORIGINAL` at page load to guarantee correct restoration after each countdown cycle.
+
+### SPF / DMARC interpretation
+
+SPF and DMARC are parsed from `TXT` and `_dmarc.TXT` records respectively:
+
+- **SPF:** The `all` mechanism qualifier is extracted (`~all`, `-all`, `+all`, `?all`). Any present and parseable SPF record renders as ✓ green — both `~all` (soft fail, industry standard) and `-all` (hard fail, stricter) are equally valid. The full raw SPF record is shown in the hover tooltip. Only a missing SPF renders red.
+- **DMARC:** The `p=` tag is extracted (`reject`, `quarantine`, `none`). `reject` and `quarantine` render green; `none` renders yellow (policy defined but no enforcement). Missing DMARC renders red with `✕ missing`.
 
 ### The `domains.list` / fallback pattern
 
-On startup, the app tries `fetch('./domains.list')`. If the file exists and is non-empty, it loads those domains. If not (static host, local file, 404), it silently falls back to the built-in top-30 list. Custom domains added via the UI get a `fullScan=true` flag, triggering NS/MX/TXT/DMARC lookups even on first check.
+On startup, `loadDomainList()` tries `fetch('./domains.list')`. If the file is present and non-empty, it loads those domains and also seeds SSL expiry from `domains.json` (if available). If not (static host, local file, 404), it silently falls back to the built-in top-30 list. Custom domains added via the UI are pushed directly into the live DOMAINS array with a `fullScan=true` flag, triggering a full NS/MX/TXT/DMARC check immediately.
 
 ---
 
 ## 📝 Changelog
 
 > Full changelog: **[CHANGELOG.md](./CHANGELOG.md)**
+
+### 🔖 v2.0.1 — 2026-03-22
+- 🐛 **fix:** SPF badge — both `~all` and `-all` now render green; only missing SPF is red
+- 🐛 **fix:** More menu — items now fully clickable; root cause was header's CSS stacking context blocking click events
+- 🐛 **fix:** More menu — backdrop div replaced with `document.addEventListener` outside-click handler; menu uses `position: fixed` + `getBoundingClientRect()`
+- 🎨 **fix:** Theme toggle moved to right of logo (before action buttons), per preference
 
 ### 🔖 v2.0.0 — 2026-03-22
 - 🚀 **feat:** Batch SSL — single `ssl-check.php?domains=...` request covers all domains (no more per-domain races)

@@ -10,6 +10,50 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [2.0.1] — 2026-03-22
+
+### 🐛 Hotfix — SPF Colour Logic · More Menu Clickability · Theme Toggle Position
+
+---
+
+#### SPF Badge Colour — Unified Green for All Valid Policies
+
+- **The problem:** `-all` (hard fail, the strictest SPF policy) was displaying with a different CSS class (`spf-pass`, green) compared to `~all` (soft fail, `spf-soft`, yellow). This caused visual inconsistency — one domain would appear "different" from the others even though both have completely valid, deployed SPF records. The `-all` policy is actually *stricter* (and better) than `~all`, so marking it differently was misleading.
+- **The fix:** Simplified the logic: any domain with a deployed SPF record (regardless of the policy qualifier) shows `spf-pass` (green). Only a completely missing SPF record shows `spf-missing` (red). The full SPF record text is still visible on hover via the existing tooltip.
+- **Why `~all` is the de facto standard:** Most ESPs (Google, Microsoft, Proton) recommend `~all` because `-all` can cause false rejects in edge cases (forwarded mail, third-party senders). Both are valid; neither is broken.
+
+#### More Menu — Fixed Stacking Context Bug
+
+- **Root cause:** The sticky header uses `position: sticky; z-index: 100` — this creates its own stacking context. Any child element of the header (including the dropdown menu set to `z-index: 1000`) is evaluated *within that context*, not the root. Meanwhile, the backdrop `<div>` was appended to `<body>` with `z-index: 999` in the root stacking context — making it effectively sit on top of the entire header (which caps at 100 from root's perspective). Result: the backdrop intercepted all clicks, preventing dropdown items from being reached.
+- **Fix A — position: fixed + getBoundingClientRect():** The dropdown menu now uses `position: fixed` (escaping the header's stacking context entirely) with `z-index: 9999`. `toggleHeaderMenu()` calls `getBoundingClientRect()` on the toggle button and positions the menu at the correct screen coordinates dynamically.
+- **Fix B — document listener replaces backdrop div:** The backdrop `<div>` (and its CSS) are removed. Outside-click detection is now a single `document.addEventListener('click', ...)` that checks whether the click target is inside `.header-dropdown` — if not, `closeHeaderMenu()` is called. Cleaner, no DOM pollution, no z-index fights.
+
+#### Theme Toggle — Moved Next to Logo
+
+- **Change:** The theme toggle (`🌙 / ☀️` slider) is moved from the right end of the header (after the More button) to immediately right of the logo — before the action buttons.
+- **Layout:** The toggle has `margin-right: auto` as a direct flex child of `<header>`, so the logo + toggle cluster naturally sits on the left while Add Domain / Refresh / More remain right-aligned.
+- This matches the user's preferred position and reduces visual noise around the action buttons.
+
+### 🐛 Fixed
+
+- **SPF colour:** `~all` and `-all` both render `spf-pass` (green); removed `spf-soft` class from SPF logic
+- **More menu:** dropdown items now fully clickable — fixed header stacking context via `position: fixed` + `getBoundingClientRect()`
+- **More menu:** backdrop div removed; replaced with `document.addEventListener('click', ...)` outside-click handler
+- **Theme toggle:** moved to right of logo (between logo and header-actions)
+
+### 🔄 Changed
+
+- `app.js` — `spfCls` logic: `d.spf === '~all' ? 'spf-soft' : (d.spf ? 'spf-pass' : ...)` → `d.spf ? 'spf-pass' : 'spf-missing'`
+- `app.js` — `toggleHeaderMenu()`: now sets `menu.style.top` / `menu.style.right` via `getBoundingClientRect()`
+- `app.js` — `closeHeaderMenu()`: backdrop references removed
+- `app.js` — backdrop IIFE replaced with `document.addEventListener('click', ...)` outside-click handler
+- `app.css` — `.header-dropdown-menu`: `position: absolute` → `position: fixed`; `z-index: 1000` → `z-index: 9999`
+- `app.css` — backdrop CSS block removed; replaced with comment explaining the pattern
+- `app.css` — `.theme-switch`: `margin-right: auto` added
+- `index.html` — theme toggle label moved out of `header-actions` to direct child of `<header>`
+
+---
+
 ## 🔖 [2.0.0] — 2026-03-22
 
 ### 🚀 Major Release — Batch SSL · Uptime Persistence · New Header
