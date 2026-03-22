@@ -1268,7 +1268,7 @@
     </div>
 
     <div class="pin-error" id="pin-error"></div>
-    <div class="pin-hint">Demo PIN: 1 2 3 4 5 6 &nbsp;·&nbsp; keyboard works too</div>
+    <div class="pin-hint">Enter PIN &nbsp;·&nbsp; keyboard works too</div>
   </div>
 </div>
 
@@ -1662,7 +1662,7 @@ function pinCheck() {
     /* Hide overlay immediately, then start loading data in background */
     setTimeout(function() {
       overlay.style.display = 'none';
-      initDashboard(); /* async — runs in background, no await needed */
+      checkFirstUse(); /* check if default PIN — may show set-PIN modal */
     }, 320);
   } else {
     pinUpdateDots('error');
@@ -2058,41 +2058,128 @@ async function dohQuery(domain, type) {
 }
 
 /** Detect NS provider from nameserver hostname */
-function detectNSProvider(nsRecords) {
-  var all = nsRecords.map(function(r){ return (r.data||'').toLowerCase(); }).join(' ');
-  if (all.includes('awsdns'))       return 'AWS';
-  if (all.includes('azure-dns') || all.includes('azure.'))  return 'Azure';
-  if (all.includes('cloudflare'))   return 'Cloudflare';
-  if (all.includes('google'))       return 'Google';
-  if (all.includes('nsone.net') || all.includes('p0') || all.includes('p09')) return 'NS1';
-  if (all.includes('akam') || all.includes('akamai')) return 'Akamai';
-  if (all.includes('wikimedia'))    return 'Wikimedia';
+/**
+ * Detect NS provider from nameserver hostname records.
+ *
+ * Strategy:
+ * 1. Check well-known provider patterns (AWS, Cloudflare, etc.)
+ * 2. Check SiteGround explicitly (very common shared host)
+ * 3. If all NS hostnames share their apex domain with the monitored
+ *    domain itself, label it "Domain" — e.g. apple.com using a.ns.apple.com
+ * 4. If NS is a subdomain of the monitored domain (ns1.yourdomain.com),
+ *    extract and capitalise the apex domain name — e.g. "Yourdomain"
+ *
+ * @param {Array}  nsRecords — DoH Answer records for NS query
+ * @param {string} domain    — the domain being monitored (for self-NS detection)
+ * @returns {string} Human-readable provider name
+ */
+function detectNSProvider(nsRecords, domain) {
+  if (!nsRecords || nsRecords.length === 0) return '—';
+
+  /* Collect all NS hostnames (lowercase, strip trailing dot) */
+  var hosts = nsRecords.map(function(r) {
+    return (r.data || '').toLowerCase().replace(/\.$/, '');
+  });
+  var all = hosts.join(' ');
+
+  /* ── Well-known commercial providers ── */
+  if (all.includes('awsdns'))                             return 'AWS';
+  if (all.includes('azure-dns') || all.includes('azure-dns'))  return 'Azure';
+  if (all.includes('googledomains') || all.includes('google.com') || all.includes('ns-cloud')) return 'Google';
+  if (all.includes('nsone.net') || /\.p\d{2}\.nsone/.test(all)) return 'NS1';
+  if (all.includes('akam.net') || all.includes('akamai')) return 'Akamai';
+  if (all.includes('wikimedia'))                          return 'Wikimedia';
+  if (all.includes('cloudns.net'))                        return 'ClouDNS';
+  if (all.includes('dnsimple'))                           return 'DNSimple';
+  if (all.includes('route53') || all.includes('amazonaws')) return 'AWS';
+  /* Cloudflare last — after checking for cloudflare.com self-NS below */
+
+  /* ── SiteGround ── */
+  if (all.includes('siteground'))                         return 'SiteGround';
+
+  /* ── Self-NS detection ──
+   * Extract the "apex" domain (last 2 labels) of both the NS host
+   * and the monitored domain, then compare.
+   *
+   * Examples:
+   *   domain=cloudflare.com, ns=ns3.cloudflare.com → apex match → "Domain"
+   *   domain=apple.com, ns=a.ns.apple.com          → apex match → "Domain"
+   *   domain=amazon.com, ns=ns1.amzndns.co.uk       → no match  → "Own"
+   *   domain=paulfleury.com, ns=ns1.myregistrar.com → no match  → check Cloudflare
+   */
+  var domainApex = apexDomain(domain);
+  var allSelfHosted = hosts.every(function(host) {
+    return apexDomain(host) === domainApex;
+  });
+  if (allSelfHosted) return 'Domain';
+
+  /* Cloudflare check here so cloudflare.com's own NS isn't labelled "Domain" */
+  if (all.includes('cloudflare'))                         return 'Cloudflare';
+
+  /* ── Registrar / branded NS that contains the domain name ──
+   * e.g. ns1.paulfleury.com → "Paulfleury", ns1.mysite.net → "Mysite"
+   * Only triggers when at least one NS host contains the domain apex.
+   */
+  var hasDomainInNS = hosts.some(function(host) { return host.includes(domainApex); });
+  if (hasDomainInNS) return capitalise(domainApex.split('.')[0]);
+
   return 'Own';
 }
 
-/** Detect MX provider from MX record data */
+/** Extract apex domain — last two labels, e.g. "sub.example.co.uk" → "co.uk"
+ *  is wrong, so we use a simple heuristic: last 2 labels.
+ *  This is sufficient for our pattern-matching purposes. */
+function apexDomain(hostname) {
+  var parts = hostname.replace(/\.$/, '').split('.');
+  return parts.slice(-2).join('.');
+}
+
+/** Capitalise first letter of a string */
+function capitalise(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+/**
+ * Detect MX / mail provider from MX records.
+ *
+ * DoH MX data format: "10 mail.protonmail.ch." (priority + space + hostname)
+ * We strip the priority prefix and trailing dot before matching.
+ */
 function detectMXProvider(mxRecords) {
-  var all = mxRecords.map(function(r){ return (r.data||'').toLowerCase(); }).join(' ');
-  if (all.includes('google') || all.includes('aspmx')) return 'Google';
-  if (all.includes('outlook') || all.includes('microsoft') || all.includes('protection')) return 'Microsoft';
-  if (all.includes('protonmail') || all.includes('proton')) return 'ProtonMail';
-  if (all.includes('amazonses') || all.includes('amazon-smtp')) return 'Amazon SES';
-  if (all.includes('mimecast'))  return 'Mimecast';
-  if (all.includes('mailgun'))   return 'Mailgun';
-  if (all.includes('sendgrid'))  return 'SendGrid';
-  if (mxRecords.length === 0)    return 'None';
+  if (!mxRecords || mxRecords.length === 0) return 'None';
+
+  /* Strip priority prefix ("10 ") and trailing dot, then lowercase */
+  var all = mxRecords.map(function(r) {
+    return (r.data || '').replace(/^\d+\s+/, '').replace(/\.$/, '').toLowerCase();
+  }).join(' ');
+
+  if (all.includes('google') || all.includes('aspmx') || all.includes('smtp.google')) return 'Google';
+  if (all.includes('outlook') || all.includes('protection.outlook') || all.includes('microsoft')) return 'Microsoft';
+  if (all.includes('protonmail') || all.includes('proton.ch')) return 'ProtonMail';
+  if (all.includes('amazonses') || all.includes('amazon-smtp') || all.includes('amzn')) return 'Amazon SES';
+  if (all.includes('mimecast'))   return 'Mimecast';
+  if (all.includes('mailgun'))    return 'Mailgun';
+  if (all.includes('sendgrid'))   return 'SendGrid';
+  if (all.includes('zoho'))       return 'Zoho';
+  if (all.includes('fastmail'))   return 'Fastmail';
+  if (all.includes('icloud') || all.includes('apple.com')) return 'Apple';
   return 'Own';
 }
 
-/** Parse DMARC policy from a TXT record string */
+/**
+ * Parse DMARC policy from _dmarc TXT records.
+ * Strips surrounding double-quotes before matching.
+ * Returns: 'reject', 'quarantine', 'none', or 'missing'.
+ */
 function parseDMARCPolicy(txtRecords) {
   for (var i = 0; i < txtRecords.length; i++) {
-    var val = (txtRecords[i].data || txtRecords[i] || '').toLowerCase();
-    if (val.includes('v=dmarc1')) {
-      if (val.includes('p=reject'))     return 'reject';
-      if (val.includes('p=quarantine')) return 'quarantine';
-      if (val.includes('p=none'))       return 'none';
-      return 'none';
+    /* Strip surrounding double-quotes that DoH adds */
+    var val = (txtRecords[i].data || txtRecords[i] || '').replace(/^"+|"+$/g, '').toLowerCase();
+    if (val.indexOf('v=dmarc1') >= 0) {
+      if (val.indexOf('p=reject')     >= 0) return 'reject';
+      if (val.indexOf('p=quarantine') >= 0) return 'quarantine';
+      if (val.indexOf('p=none')       >= 0) return 'none';
+      return 'none'; /* DMARC record exists but no explicit p= tag */
     }
   }
   return 'missing';
@@ -2100,12 +2187,18 @@ function parseDMARCPolicy(txtRecords) {
 
 /** Parse SPF from TXT records */
 function parseSPF(txtRecords) {
+  /*
+   * Parse SPF qualifier from TXT records.
+   * Cloudflare DoH wraps TXT data in double-quotes: '"v=spf1 ..."'
+   * We strip those before matching.
+   * Returns: '~all', '-all', '+all', '?all', or '' if no SPF found.
+   */
   for (var i = 0; i < txtRecords.length; i++) {
-    var val = (txtRecords[i].data || txtRecords[i] || '');
-    if (val.toLowerCase().includes('v=spf1')) {
-      /* Return just the qualifier: ~all, -all, +all, ?all, or the redirect */
-      var m = val.match(/[~\-+?]all/i);
-      return m ? m[0].toLowerCase() : '~all';
+    /* Strip surrounding double-quotes that DoH adds to TXT records */
+    var val = (txtRecords[i].data || txtRecords[i] || '').replace(/^"+|"+$/g, '');
+    if (val.toLowerCase().indexOf('v=spf1') >= 0) {
+      var m = val.match(/([~\-+?]all)/i);
+      return m ? m[1].toLowerCase() : '~all';
     }
   }
   return '';
@@ -2180,7 +2273,7 @@ async function checkDomain(domain, fullScan) {
       var dmarcRecs = results[3];
 
       /* Update the domain entry with discovered data */
-      if (nsRecs.length > 0)    entry.ns     = detectNSProvider(nsRecs);
+      if (nsRecs.length > 0)    entry.ns     = detectNSProvider(nsRecs, domain);
       if (mxRecs.length >= 0)   entry.mxType = detectMXProvider(mxRecs);
       entry.dmarc = parseDMARCPolicy(dmarcRecs);
       entry.spf   = parseSPF(txtRecs);
@@ -2606,6 +2699,164 @@ setInterval(function() {
 }, 1000);
 
 
+
+/* ────────────────────────────────────────────────────────────────
+   FIRST-PIN-SETS-PIN FLOW
+   ─────────────────────────────────────────────────────────────
+   Challenge: the default PIN (123456) is public knowledge. Anyone
+   who finds the dashboard URL can get in. We want to nudge the user
+   to set a personal PIN immediately on first use.
+
+   How it works:
+   1. pinCheck() detects if the entered PIN matches the default hash.
+   2. If so, instead of going straight to the dashboard, it shows
+      the Set-PIN modal (a second numpad for new PIN + confirm).
+   3. The user enters their new PIN twice — if they match, we:
+      a. Update PIN_HASH in memory (takes effect immediately)
+      b. Attempt to rewrite index.html via HTTP PUT so the change
+         persists across page reloads (works on writable servers)
+      c. Show the new hash + manual instruction if PUT fails
+   4. If the user skips, we proceed to the dashboard normally.
+
+   Security note: the new PIN hash is written to the HTML file in
+   plain sight inside index.html — just like the original. This is
+   a client-side-only protection; anyone with server access can read
+   the file. Suitable for casual access control, not for secrets.
+   ──────────────────────────────────────────────────────────────── */
+
+/* SHA-256 hash of the DEFAULT PIN "123456" — used to detect first-use */
+var DEFAULT_PIN_HASH = '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
+
+var spPhase  = 1;    /* 1 = entering new PIN, 2 = confirming new PIN */
+var spPin1   = '';   /* first entry */
+var spPin2   = '';   /* confirmation entry */
+
+/** Called after correct PIN unlock — check if it was the default */
+function checkFirstUse() {
+  if (PIN_HASH !== DEFAULT_PIN_HASH) {
+    /* User already has a custom PIN — go straight to dashboard */
+    initDashboard();
+    return;
+  }
+  /* Default PIN detected — show the set-PIN modal */
+  var overlay = document.getElementById('set-pin-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  spPhase = 1; spPin1 = ''; spPin2 = '';
+  spUpdateDots();
+}
+
+/** Update the two rows of dots in the Set-PIN modal */
+function spUpdateDots(errorRow) {
+  for (var row = 1; row <= 2; row++) {
+    var buf = (row === 1) ? spPin1 : spPin2;
+    for (var i = 0; i < 6; i++) {
+      var dot = document.getElementById('sp-dot-' + row + '-' + i);
+      if (!dot) continue;
+      dot.className = 'pin-dot';
+      if (errorRow === row)   dot.classList.add('error');
+      else if (i < buf.length) dot.classList.add('filled');
+    }
+  }
+  /* Dim confirm row until new PIN is complete */
+  var label = document.getElementById('sp-confirm-label');
+  if (label) label.style.opacity = (spPin1.length === 6) ? '1' : '0.4';
+}
+
+/** Digit pressed in Set-PIN modal */
+function spDigit(d) {
+  if (spPhase === 1) {
+    if (spPin1.length >= 6) return;
+    spPin1 += d;
+    spUpdateDots();
+    if (spPin1.length === 6) {
+      /* Move to confirm phase after short pause */
+      setTimeout(function() { spPhase = 2; spUpdateDots(); }, 200);
+    }
+  } else {
+    if (spPin2.length >= 6) return;
+    spPin2 += d;
+    spUpdateDots();
+    if (spPin2.length === 6) setTimeout(spConfirm, 200);
+  }
+}
+
+/** Delete in Set-PIN modal */
+function spDelete() {
+  if (spPhase === 1) { spPin1 = spPin1.slice(0,-1); }
+  else               { spPin2 = spPin2.slice(0,-1); }
+  spUpdateDots();
+  document.getElementById('sp-error').textContent = '';
+}
+
+/** Check if the two PINs match and apply */
+function spConfirm() {
+  if (spPin1 !== spPin2) {
+    /* Mismatch — flash error on row 2, reset confirmation */
+    spUpdateDots(2);
+    document.getElementById('sp-error').textContent = "PINs don't match — try again";
+    setTimeout(function() { spPin2 = ''; spPhase = 2; spUpdateDots(); }, 700);
+    return;
+  }
+  /* Match — compute new hash and apply */
+  var newHash = sha256(spPin1);
+  PIN_HASH = newHash;
+  document.getElementById('sp-error').textContent = '';
+
+  /* Attempt to persist the new hash into index.html via HTTP PUT */
+  spPersistHash(newHash).then(function(saved) {
+    var overlay = document.getElementById('set-pin-overlay');
+    if (overlay) overlay.style.display = 'none';
+    if (!saved) {
+      /* PUT failed — show the hash so they can update manually */
+      alert('PIN set! Your new PIN is active. To make it permanent, open index.html and set PIN_HASH to: ' + newHash);
+    }
+    initDashboard();
+  });
+}
+
+/** Skip — proceed with default PIN */
+function spSkip() {
+  var overlay = document.getElementById('set-pin-overlay');
+  if (overlay) overlay.style.display = 'none';
+  initDashboard();
+}
+
+/**
+ * Try to rewrite the PIN_HASH line in index.html via HTTP PUT.
+ * This works on servers that support it (Apache mod_dav, Nginx with
+ * dav_methods, or a custom write endpoint). Fails silently on static
+ * hosts — the user gets a manual instruction dialog instead.
+ *
+ * @param {string} newHash — the new SHA-256 hash to write
+ * @returns {Promise<boolean>} true if successfully saved
+ */
+async function spPersistHash(newHash) {
+  try {
+    /* Fetch the current index.html source */
+    var res = await fetch('./index.html', { cache: 'no-cache' });
+    if (!res.ok) return false;
+    var src = await res.text();
+
+    /* Replace the PIN_HASH line — match both the old default and any previous custom hash */
+    var updated = src.replace(
+      /var PIN_HASH = '[a-f0-9]{64}';/,
+      "var PIN_HASH = '" + newHash + "';"
+    );
+    if (updated === src) return false; /* no replacement made */
+
+    /* PUT the updated file back */
+    var put = await fetch('./index.html', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/html' },
+      body: updated
+    });
+    return put.ok;
+  } catch(e) {
+    return false;
+  }
+}
+
+
 /* ────────────────────────────────────────────────────────────────
    14. INIT — entry point after PIN unlock
    1. Load domains.list (or fall back to BUILTIN)
@@ -2709,6 +2960,74 @@ if (!checkWebhookMode()) {
       </a>
       <span style="font-size:var(--text-xs);color:var(--text-faint)">MIT License · No tracking · No cookies</span>
     </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SET-PIN MODAL
+     Shown once when the user enters the default PIN (123456)
+     for the first time, inviting them to set a personal PIN.
+     The new PIN hash is written into index.html via HTTP PUT
+     if the server allows it; otherwise the user gets instructions
+     to update PIN_HASH manually.
+═════════════════════════════════════════════════════════════ -->
+<div id="set-pin-overlay" style="display:none;position:fixed;inset:0;z-index:9500;
+     background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(20px);
+     align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);
+       padding:var(--space-8);width:min(380px,94vw);box-shadow:var(--shadow-lg),var(--shadow-glow);
+       text-align:center;animation:card-in 0.3s cubic-bezier(.34,1.56,.64,1)">
+
+    <div style="font-size:32px;margin-bottom:var(--space-4)">🔐</div>
+    <h2 style="font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;
+         letter-spacing:-0.02em;margin-bottom:var(--space-2)">Set your PIN</h2>
+    <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-5);line-height:1.6">
+      You're using the default PIN <code style="background:var(--surface-2);border:1px solid var(--border);
+      padding:1px 7px;border-radius:4px;font-family:var(--font-mono)">123456</code>.<br>
+      Enter a new 6-digit PIN to secure your dashboard.
+    </p>
+
+    <!-- New PIN dots -->
+    <p style="font-size:var(--text-xs);color:var(--text-faint);margin-bottom:var(--space-2);
+       font-family:var(--font-mono);letter-spacing:.06em">NEW PIN</p>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:var(--space-4)" id="sp-dots-1">
+      <div class="pin-dot" id="sp-dot-1-0"></div><div class="pin-dot" id="sp-dot-1-1"></div>
+      <div class="pin-dot" id="sp-dot-1-2"></div><div class="pin-dot" id="sp-dot-1-3"></div>
+      <div class="pin-dot" id="sp-dot-1-4"></div><div class="pin-dot" id="sp-dot-1-5"></div>
+    </div>
+
+    <!-- Confirm PIN dots -->
+    <p style="font-size:var(--text-xs);color:var(--text-faint);margin-bottom:var(--space-2);
+       font-family:var(--font-mono);letter-spacing:.06em" id="sp-confirm-label"
+       style="opacity:0.3">CONFIRM PIN</p>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:var(--space-5)" id="sp-dots-2">
+      <div class="pin-dot" id="sp-dot-2-0"></div><div class="pin-dot" id="sp-dot-2-1"></div>
+      <div class="pin-dot" id="sp-dot-2-2"></div><div class="pin-dot" id="sp-dot-2-3"></div>
+      <div class="pin-dot" id="sp-dot-2-4"></div><div class="pin-dot" id="sp-dot-2-5"></div>
+    </div>
+
+    <!-- Numpad (same layout as login) -->
+    <div class="pin-grid" style="margin-bottom:var(--space-3)">
+      <button class="pin-btn" onclick="spDigit('1')">1</button>
+      <button class="pin-btn" onclick="spDigit('2')">2</button>
+      <button class="pin-btn" onclick="spDigit('3')">3</button>
+      <button class="pin-btn" onclick="spDigit('4')">4</button>
+      <button class="pin-btn" onclick="spDigit('5')">5</button>
+      <button class="pin-btn" onclick="spDigit('6')">6</button>
+      <button class="pin-btn" onclick="spDigit('7')">7</button>
+      <button class="pin-btn" onclick="spDigit('8')">8</button>
+      <button class="pin-btn" onclick="spDigit('9')">9</button>
+      <span></span>
+      <button class="pin-btn" onclick="spDigit('0')">0</button>
+      <button class="pin-btn pin-btn-del" onclick="spDelete()">⌫</button>
+    </div>
+
+    <div id="sp-error" style="font-size:var(--text-xs);color:var(--red);min-height:18px;margin-bottom:var(--space-3)"></div>
+
+    <button onclick="spSkip()" style="font-size:var(--text-xs);color:var(--text-faint);
+            background:none;border:none;cursor:pointer;font-family:var(--font-display);
+            text-decoration:underline">Skip for now — keep using 123456</button>
   </div>
 </div>
 
