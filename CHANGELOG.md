@@ -10,6 +10,120 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [3.3.0] — 2026-03-23
+
+### 🔔 Complete Notification Coverage — Cron + Browser · Digest Format · Deduplication
+
+---
+
+#### The problem with v3.2.0 notifications
+
+v3.2.0 only fired notifications on UP↔DOWN transitions detected in `uptimeRecord()`. Two critical paths were missing:
+
+1. **Health alerts never fired from browser checks.** After `fetchAllSSLExpiry()` completed and SSL data was merged into DOMAINS, nobody scanned for "SSL expiring in 12 days" and sent an alert. The data was there; nothing acted on it.
+
+2. **The cron never sent any notifications.** `update-stats.php` detected `$alertCount > 0` and logged it, but never POSTed to `notify.php`. A cron-detected downtime was completely silent.
+
+3. **No deduplication.** If a domain has SSL expiring in 25 days, the auto-refresh fires every 3 minutes — that's 480 emails/day without a cooldown system.
+
+---
+
+#### Fix 1 — `sendHealthReport()` in app.js
+
+A new function scans all DOMAINS after every full check cycle. It runs in two places:
+
+```
+checkAll()
+  ├── DNS checks (batched)
+  ├── fetchAllSSLExpiry()  →  .then(sslMap => {
+  │     merge SSL data          merge into DOMAINS
+  │     renderTable()           sendHealthReport()  ← HERE (SSL data complete)
+  │   })
+  └── if (needSSL.length === 0)
+        sendHealthReport()  ← HERE (all data already known)
+```
+
+`sendHealthReport()` checks five conditions per domain: DOWN, SSL ≤30d, DMARC missing, DMARC p=none, SPF missing. Each condition uses a per-domain per-type cooldown (`_notifyLastSent[domain:type]`) to prevent re-sending. If nothing is wrong, no fetch() is made. If issues exist, a single digest is POSTed to `notify.php?action=digest`.
+
+**Cooldown periods** (configurable via `NOTIFY_COOLDOWN` constant):
+- `down` — 1 hour (repeated reminder if domain stays down)
+- `ssl_expiry` — 24 hours
+- `dmarc_missing` — 24 hours
+- `dmarc_none` — 24 hours
+- `spf_missing` — 24 hours
+
+**Bottleneck encountered:** The browser sends one digest covering ALL issues across ALL domains — not one email per domain. This required a new `action:"digest"` in `notify.php` that accepts an array of issue objects and renders a multi-domain email.
+
+---
+
+#### Fix 2 — `update-stats.php` now sends notifications
+
+After the check loop (Steps 1–4), a new Step 6 runs:
+
+1. Reads `ase_config.json` to check `notify_enabled`
+2. Scans results for: DOWN, SSL ≤30d, DMARC missing/none, SPF missing
+3. Loads `cron_notify_sent.json` — the cron's deduplication tracker (equivalent of `_notifyLastSent` in the browser, but file-backed since the cron has no persistent memory between runs)
+4. For each new issue (past cooldown): adds to issues array, marks sent
+5. POSTs to `notify.php?action=digest` via HTTP self-request
+6. Logs result (`✓ Notification sent: N issue(s)` or `⚠ Notification failed: ...`)
+
+**Why HTTP self-request rather than including notify.php directly?**
+Including notify.php would require duplicating the Resend/AES-256-GCM logic. An HTTP self-request keeps the logic in one place. The `$_SERVER['SERVER_NAME']` check handles the edge case where the cron runs via CLI without HTTP context — in that case it logs a warning rather than failing silently.
+
+---
+
+#### Fix 3 — Digest email format (`action:"digest"`)
+
+A new `buildDigestEmail()` function in `notify.php` generates a multi-domain health report. Each issue renders as a card with: domain name + severity badge, detail text, and a 3×2 mini-table (Latency, SSL, DMARC, SPF, NS, MX).
+
+Issues are sorted: criticals first, then warnings. The email header colour is red for criticals, amber for warnings-only.
+
+**Test email** now sends a 3-issue demo digest (DOWN + SSL expiring in 5 days + DMARC missing) so users can see exactly what a real alert email looks like before any real issue occurs.
+
+---
+
+#### Architecture summary
+
+```
+Notification trigger paths:
+─────────────────────────────────────────────────────────────
+A. UP↔DOWN transition (browser)   uptimeRecord() → notifyDowntime()
+   [individual domain DOWN/UP alert — immediate, no cooldown]
+
+B. Health scan (browser)          checkAll() → sendHealthReport()
+   [full digest after every check cycle — cooldown-protected]
+
+C. Cron check (server)            update-stats.php Step 6
+   [full digest after every cron run — file-backed cooldown]
+─────────────────────────────────────────────────────────────
+All three paths → notify.php → Resend API → your inbox
+```
+
+### ✨ Added
+
+- **`sendHealthReport(force?)`** — scans all domains, collects issues, sends digest
+- **`_notifyLastSent`** — in-memory cooldown tracker (domain:type → timestamp)
+- **`NOTIFY_COOLDOWN`** — configurable cooldown constants per issue type
+- **`_notifyCooldownOk(domain, type)`** — checks cooldown before sending
+- **`_notifyMarkSent(domain, type)`** — records send timestamp
+- **`_calcSslDays(sslExpiry)`** — utility: days until SSL expiry from date string
+- **`notify.php: buildDigestEmail(issues, totalDomains, domainsDown)`** — multi-domain HTML report
+- **`notify.php: action:"digest"`** — accepts array of issues, sends one email
+- **`update-stats.php Step 6`** — post-check notification with deduplication
+- **`cron_should_notify()` / `cron_mark_sent()`** — file-backed deduplication for cron
+- **`cron_notify_sent.json`** — cron deduplication state file
+- **`.htaccess`** — `cron_notify_sent.json` added to protected files
+
+### 🔄 Changed
+
+- `app.js` — `checkAll()`: calls `sendHealthReport()` after SSL merge + when needSSL is empty
+- `notify.php` — `buildAlertEmail()` kept for `action:"notify"` (UP↔DOWN single-domain)
+- `notify.php` — test action: sends a 3-issue demo digest instead of plain single alert
+- `update-stats.php` — VERSION updated to 3.3.0; `NOTIFY_PHP`, `CONFIG_FILE`, `NOTIFY_SENT` defines added
+- `README` — features list, inline changelog, How It Works updated
+
+---
+
 ## 🔖 [3.2.0] — 2026-03-23
 
 ### 🔔 Enriched Email Notifications · Help Modal Docs · Dropdown Fix

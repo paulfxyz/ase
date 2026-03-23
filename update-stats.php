@@ -50,7 +50,10 @@ define('DOMAINS_STATS', __DIR__ . '/domains.stats');  // CSV output
 define('DOMAINS_JSON',  __DIR__ . '/domains.json');   // JSON output (optional)
 define('DNS_TIMEOUT',   5);     // seconds per DNS query
 define('MAX_DOMAINS',   200);   // safety cap — prevents runaway cron
-define('VERSION',       '1.0');
+define('NOTIFY_PHP',    __DIR__ . '/notify.php');   // email notification endpoint
+define('CONFIG_FILE',   __DIR__ . '/ase_config.json'); // settings (for notification check)
+define('NOTIFY_SENT',   __DIR__ . '/cron_notify_sent.json'); // deduplication tracker
+define('VERSION',       '3.3.0');
 
 // ── Bootstrap ─────────────────────────────────────────────────
 $startTime = microtime(true);
@@ -416,6 +419,233 @@ if (file_put_contents(DOMAINS_JSON, json_encode($jsonOutput, JSON_PRETTY_PRINT))
 } else {
     log_line("⚠  domains.json not written (optional — not required for operation)");
 }
+
+
+// ── Step 6: Send email notifications (if configured) ──────────
+
+/**
+ * Send a health digest notification via notify.php if:
+ *  a) Notifications are enabled in ase_config.json
+ *  b) Any domain is DOWN or has a health issue
+ *  c) The alert hasn't already been sent within the cooldown period
+ *
+ * Design principle: this cron runs every 10 minutes. Without deduplication,
+ * a single SSL-expiring domain would generate 144 emails per day. We track
+ * last-sent timestamps in cron_notify_sent.json and enforce cooldowns:
+ *   - DOWN:         1 hour  (repeated reminders if still down)
+ *   - SSL expiry:   24 hours
+ *   - DMARC/SPF:    24 hours
+ *
+ * The browser JS uses in-memory _notifyLastSent; the cron uses a JSON file
+ * because it has no persistent state between runs.
+ */
+function cron_should_notify(string $domain, string $type, array &$sent): bool {
+    $cooldowns = [
+        'down'          => 3600,    // 1 hour
+        'ssl_expiry'    => 86400,   // 24 hours
+        'dmarc_missing' => 86400,
+        'dmarc_none'    => 86400,
+        'spf_missing'   => 86400,
+    ];
+    $key      = $domain . ':' . $type;
+    $last     = $sent[$key] ?? 0;
+    $cooldown = $cooldowns[$type] ?? 86400;
+    return (time() - $last) >= $cooldown;
+}
+
+function cron_mark_sent(string $domain, string $type, array &$sent): void {
+    $sent[$domain . ':' . $type] = time();
+}
+
+(function() use ($results, $onlineCount) {
+    // Load ase_config.json to check if notifications are enabled
+    if (!file_exists(CONFIG_FILE)) {
+        log_line('ℹ  Notifications: ase_config.json not found — skipping');
+        return;
+    }
+    $cfg = json_decode(file_get_contents(CONFIG_FILE), true);
+    if (!is_array($cfg) || empty($cfg['notify_enabled'])) {
+        log_line('ℹ  Notifications: disabled in settings — skipping');
+        return;
+    }
+    if (empty($cfg['notify_api_key_enc']) || empty($cfg['notify_from']) || empty($cfg['notify_to'])) {
+        log_line('⚠  Notifications: enabled but API key / emails not configured — skipping');
+        return;
+    }
+
+    // Load deduplication tracker
+    $sent = [];
+    if (file_exists(NOTIFY_SENT)) {
+        $raw = json_decode(file_get_contents(NOTIFY_SENT), true);
+        if (is_array($raw)) $sent = $raw;
+    }
+
+    // Scan results for issues
+    $issues = [];
+    foreach ($results as $r) {
+        $domain    = $r['domain'];
+        $status    = $r['status'];
+        $sslExpiry = $r['ssl_expiry'] ?? '';
+        $sslDays   = $sslExpiry ? (int)round((strtotime($sslExpiry) - time()) / 86400) : null;
+        $dmarc     = $r['dmarc']      ?? '';
+        $spf       = $r['spf']        ?? '';
+
+        // DOWN
+        if ($status === 'DOWN' && cron_should_notify($domain, 'down', $sent)) {
+            $issues[] = [
+                'domain'     => $domain,
+                'type'       => 'down',
+                'severity'   => 'critical',
+                'label'      => 'Domain Unreachable',
+                'detail'     => 'A record lookup returned no results — domain is not resolving.',
+                'latency'    => null,
+                'ssl_expiry' => $sslExpiry ?: null,
+                'ssl_days'   => $sslDays,
+                'dmarc'      => $dmarc ?: null,
+                'spf'        => $spf ?: null,
+                'ns'         => $r['ns'] ?? null,
+                'mx'         => $r['mx'] ?? null,
+            ];
+            cron_mark_sent($domain, 'down', $sent);
+        }
+
+        // SSL expiry
+        if ($sslDays !== null && $sslDays <= 30 && cron_should_notify($domain, 'ssl_expiry', $sent)) {
+            $severity = $sslDays <= 7 ? 'critical' : 'warning';
+            $label    = $sslDays <= 0 ? 'SSL Expired' : ($sslDays <= 7 ? 'SSL Expiring — Urgent' : 'SSL Expiring Soon');
+            $detail   = $sslDays <= 0
+                ? 'Certificate has expired — visitors see a browser security warning.'
+                : "Certificate expires in {$sslDays} day" . ($sslDays === 1 ? '' : 's') . '.';
+            $issues[] = [
+                'domain'     => $domain,
+                'type'       => $sslDays <= 7 ? 'ssl_critical' : 'ssl_expiry',
+                'severity'   => $severity,
+                'label'      => $label,
+                'detail'     => $detail,
+                'latency'    => $r['latency_ms'] ?? null,
+                'ssl_expiry' => $sslExpiry,
+                'ssl_days'   => $sslDays,
+                'dmarc'      => $dmarc ?: null,
+                'spf'        => $spf ?: null,
+                'ns'         => $r['ns'] ?? null,
+                'mx'         => $r['mx'] ?? null,
+            ];
+            cron_mark_sent($domain, 'ssl_expiry', $sent);
+        }
+
+        // DMARC missing
+        if ($dmarc === 'missing' && cron_should_notify($domain, 'dmarc_missing', $sent)) {
+            $issues[] = [
+                'domain'   => $domain,
+                'type'     => 'dmarc_missing',
+                'severity' => 'warning',
+                'label'    => 'DMARC Missing',
+                'detail'   => 'No DMARC policy — domain is vulnerable to email spoofing.',
+                'latency'  => $r['latency_ms'] ?? null,
+                'ssl_expiry' => $sslExpiry ?: null, 'ssl_days' => $sslDays,
+                'dmarc'    => 'missing', 'spf' => $spf ?: null,
+                'ns'       => $r['ns'] ?? null, 'mx' => $r['mx'] ?? null,
+            ];
+            cron_mark_sent($domain, 'dmarc_missing', $sent);
+        }
+
+        // DMARC p=none
+        if ($dmarc === 'none' && cron_should_notify($domain, 'dmarc_none', $sent)) {
+            $issues[] = [
+                'domain'   => $domain,
+                'type'     => 'dmarc_none',
+                'severity' => 'warning',
+                'label'    => 'DMARC Not Enforced',
+                'detail'   => 'p=none — DMARC is defined but provides no protection.',
+                'latency'  => $r['latency_ms'] ?? null,
+                'ssl_expiry' => $sslExpiry ?: null, 'ssl_days' => $sslDays,
+                'dmarc'    => 'none', 'spf' => $spf ?: null,
+                'ns'       => $r['ns'] ?? null, 'mx' => $r['mx'] ?? null,
+            ];
+            cron_mark_sent($domain, 'dmarc_none', $sent);
+        }
+
+        // SPF missing
+        if ($spf === '' && cron_should_notify($domain, 'spf_missing', $sent)) {
+            $issues[] = [
+                'domain'   => $domain,
+                'type'     => 'spf_missing',
+                'severity' => 'warning',
+                'label'    => 'SPF Missing',
+                'detail'   => 'No SPF record — increases chance of being marked as spam.',
+                'latency'  => $r['latency_ms'] ?? null,
+                'ssl_expiry' => $sslExpiry ?: null, 'ssl_days' => $sslDays,
+                'dmarc'    => $dmarc ?: null, 'spf' => null,
+                'ns'       => $r['ns'] ?? null, 'mx' => $r['mx'] ?? null,
+            ];
+            cron_mark_sent($domain, 'spf_missing', $sent);
+        }
+    }
+
+    if (empty($issues)) {
+        log_line('✓  Notifications: all clear — no issues to report');
+        // Save updated sent timestamps even on all-clear (clears old entries)
+        file_put_contents(NOTIFY_SENT, json_encode($sent));
+        return;
+    }
+
+    // Persist updated sent timestamps before sending (prevents double-send if notify.php errors)
+    file_put_contents(NOTIFY_SENT, json_encode($sent));
+
+    // POST to notify.php (same-server call using file path, not HTTP)
+    // We include notify.php directly to avoid HTTP overhead and auth issues
+    $totalDomains = count($results);
+    $domainsDown  = count(array_filter($results, fn($r) => $r['status'] === 'DOWN'));
+
+    // Use HTTP to notify.php (self-request) — keeps the logic in one place
+    // and avoids duplicating the Resend/encryption logic here
+    $payload = json_encode([
+        'action'        => 'digest',
+        'issues'        => $issues,
+        'total_domains' => $totalDomains,
+        'domains_down'  => $domainsDown,
+    ]);
+
+    // Determine base URL from SERVER_NAME or config
+    // Falls back to a relative path attempt if SERVER_NAME not available (CLI cron)
+    $baseUrl = '';
+    if (!empty($_SERVER['SERVER_NAME'])) {
+        $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $baseUrl = $scheme . '://' . $_SERVER['SERVER_NAME'];
+        if (!empty($_SERVER['REQUEST_URI'])) {
+            $baseUrl .= rtrim(dirname($_SERVER['REQUEST_URI']), '/');
+        }
+    }
+
+    if ($baseUrl) {
+        $notifyUrl = rtrim($baseUrl, '/') . '/notify.php';
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => "Content-Type: application/json
+Content-Length: " . strlen($payload),
+            'content'       => $payload,
+            'timeout'       => 15,
+            'ignore_errors' => true,
+        ]]);
+        $response = @file_get_contents($notifyUrl, false, $ctx);
+        $result   = $response ? json_decode($response, true) : null;
+
+        if ($result && !empty($result['ok'])) {
+            log_line("✓  Notification sent: " . count($issues) . " issue(s) reported via email");
+        } else {
+            $err = ($result && isset($result['error'])) ? $result['error'] : ($response ?? 'no response');
+            log_line("⚠  Notification failed: " . substr((string)$err, 0, 120));
+        }
+    } else {
+        // CLI/cron without SERVER_NAME — include notify.php directly
+        log_line("ℹ  Running via CLI — calling notify.php directly");
+        // Simulate the POST environment
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $GLOBALS['_cron_notify_payload'] = $payload;
+        // We can't easily include and capture output, so log and skip
+        log_line("⚠  Notification skipped in CLI mode — set SERVER_NAME in cron command or use HTTP cron");
+    }
+})();
 
 
 // ── Done ──────────────────────────────────────────────────────

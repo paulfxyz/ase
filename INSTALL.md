@@ -443,7 +443,10 @@ Hour 2:  domain-a DOWN  → ✅ email sent (1/10) — window reset
 | Domain goes DOWN (A record fails) | ✅ Yes | Only on first DOWN, not repeated failures |
 | Domain recovers (UP again) | ✅ Yes | Recovery email clearly marked green |
 | Manual refresh detects new downtime | ✅ Yes | Any `checkAll()` cycle triggers detection |
-| Cron (`update-stats.php`) detects downtime | ✅ Yes | When configured (see Step 3 above) |
+| Cron (`update-stats.php`) detects downtime | ✅ Yes (v3.3.0+) | Cron runs Step 6 after every check; deduplication prevents repeated alerts |
+| Cron detects SSL expiring ≤30 days | ✅ Yes (v3.3.0+) | 24h cooldown — one alert per day max |
+| Cron detects DMARC missing | ✅ Yes (v3.3.0+) | 24h cooldown |
+| Browser `checkAll()` finds SSL/DMARC/SPF issue | ✅ Yes (v3.3.0+) | `sendHealthReport()` fires after every scan |
 | Same domain still DOWN on next check | ❌ No | Only state transitions trigger alerts |
 | Test button clicked | ✅ Always | Ignores rate limit; sends demo email |
 

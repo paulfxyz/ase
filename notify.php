@@ -27,7 +27,7 @@
  *   - Rate limit: 10 emails/hour
  *   - All inputs sanitised before rendering in HTML
  *
- * @version 3.2.0
+ * @version 3.3.0
  * @author  Paul Fleury / Perplexity Computer
  */
 
@@ -326,6 +326,135 @@ function buildAlertEmail(string $domain, string $status, array $extra = [], bool
 HTML;
 }
 
+
+/**
+ * Build a multi-domain health digest email.
+ *
+ * Combines all issues across all domains into a single well-structured
+ * email. Grouped by severity (critical first, then warnings).
+ * Each issue shows the domain snapshot (SSL, DMARC, SPF, NS, MX).
+ *
+ * @param array $issues   Array of issue objects from the browser or cron
+ * @param int   $totalDomains
+ * @param int   $domainsDown
+ */
+function buildDigestEmail(array $issues, int $totalDomains, int $domainsDown): string {
+    $timeStr      = date('D d M Y, H:i:s T');
+    $issueCount   = count($issues);
+    $criticals    = array_filter($issues, fn($i) => $i['severity'] === 'critical');
+    $warnings     = array_filter($issues, fn($i) => $i['severity'] === 'warning');
+    $headerColor  = count($criticals) > 0 ? '#ef4444' : '#f59e0b';
+    $headerIcon   = count($criticals) > 0 ? '🚨' : '⚠️';
+    $headerTitle  = count($criticals) > 0
+        ? "Downtime / Critical Alert — {$issueCount} issue" . ($issueCount !== 1 ? 's' : '') . " detected"
+        : "Health Warning — {$issueCount} issue" . ($issueCount !== 1 ? 's' : '') . " detected";
+
+    /* Build issue rows */
+    $rowsHtml = '';
+    $allIssues = array_merge(array_values($criticals), array_values($warnings));
+    foreach ($allIssues as $issue) {
+        $isCritical  = ($issue['severity'] === 'critical');
+        $rowBg       = $isCritical ? '#fef2f2' : '#fffbeb';
+        $rowBorder   = $isCritical ? '#fecaca' : '#fde68a';
+        $labelColor  = $isCritical ? '#dc2626' : '#d97706';
+        $icon        = $isCritical ? '🚨' : '⚠️';
+
+        $domain      = h($issue['domain'] ?? '');
+        $label       = h($issue['label']  ?? '');
+        $detail      = h($issue['detail'] ?? '');
+        $sslExpiry   = $issue['ssl_expiry'] ?? null;
+        $sslDays     = $issue['ssl_days']   ?? null;
+        $dmarc       = $issue['dmarc']      ?? null;
+        $spf         = $issue['spf']        ?? null;
+        $ns          = $issue['ns']         ?? null;
+        $mx          = $issue['mx']         ?? null;
+        $latency     = $issue['latency']    ?? null;
+
+        $sslStr  = $sslExpiry ? h($sslExpiry) . ($sslDays !== null ? " ({$sslDays}d)" : '') : '—';
+        $sslCol  = '#374151';
+        if ($sslDays !== null) {
+            if ($sslDays <= 7)       $sslCol = '#dc2626';
+            elseif ($sslDays <= 30)  $sslCol = '#d97706';
+            else                     $sslCol = '#059669';
+        }
+        $dmarcStr = $dmarc ? h(ucfirst($dmarc)) : '—';
+        $dmarcCol = '#374151';
+        if ($dmarc === 'reject')              $dmarcCol = '#059669';
+        elseif ($dmarc === 'quarantine')      $dmarcCol = '#d97706';
+        elseif ($dmarc === 'none' || $dmarc === 'missing') $dmarcCol = '#dc2626';
+
+        $latStr  = $latency !== null ? "{$latency}ms" : '—';
+
+        $rowsHtml .= <<<ROW
+        <div style="background:{$rowBg};border:1px solid {$rowBorder};border-radius:10px;padding:16px 18px;margin-bottom:12px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+            <div>
+              <span style="font-size:16px;font-weight:800;color:#111">{$icon} {$domain}</span>
+              <span style="margin-left:10px;display:inline-block;background:{$labelColor};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase">{$label}</span>
+            </div>
+          </div>
+          <p style="margin:0 0 10px;font-size:13px;color:#374151">{$detail}</p>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <tr>
+              <td style="padding:3px 8px 3px 0;color:#6b7280;width:90px">Latency</td>
+              <td style="padding:3px 0;color:#374151">{$latStr}</td>
+              <td style="padding:3px 8px 3px 16px;color:#6b7280;width:70px">SSL</td>
+              <td style="padding:3px 0;font-weight:600;color:{$sslCol}">{$sslStr}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 8px 3px 0;color:#6b7280">DMARC</td>
+              <td style="padding:3px 0;font-weight:600;color:{$dmarcCol}">{$dmarcStr}</td>
+              <td style="padding:3px 8px 3px 16px;color:#6b7280">SPF</td>
+              <td style="padding:3px 0;color:#374151">{$spf ? h($spf) : '<span style="color:#dc2626">missing</span>'}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 8px 3px 0;color:#6b7280">NS</td>
+              <td style="padding:3px 0;color:#374151">{$ns ? h($ns) : '—'}</td>
+              <td style="padding:3px 8px 3px 16px;color:#6b7280">MX</td>
+              <td style="padding:3px 0;color:#374151">{$mx ? h($mx) : '—'}</td>
+            </tr>
+          </table>
+        </div>
+ROW;
+    }
+
+    /* Summary line */
+    $summaryParts = [];
+    if ($domainsDown > 0) $summaryParts[] = "<strong style="color:#ef4444">{$domainsDown} DOWN</strong>";
+    $critCount = count($criticals);
+    $warnCount = count($warnings);
+    if ($critCount > 0) $summaryParts[] = "{$critCount} critical";
+    if ($warnCount > 0) $summaryParts[] = "{$warnCount} warning" . ($warnCount !== 1 ? 's' : '');
+    $summary = implode(' · ', $summaryParts);
+
+    return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;margin:0;padding:24px 16px">
+  <div style="max-width:560px;margin:0 auto">
+    <div style="background:{$headerColor};padding:22px 24px;border-radius:12px 12px 0 0">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:800">{$headerIcon} {$headerTitle}</h1>
+      <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:13px">
+        {$totalDomains} domains monitored · {$summary} · {$timeStr}
+      </p>
+    </div>
+    <div style="background:#fff;padding:24px;border-radius:0 0 12px 12px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+
+      {$rowsHtml}
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:#9ca3af">{$timeStr}</span>
+        <a href="https://github.com/paulfxyz/the-all-seeing-eye"
+           style="font-size:11px;color:#8b5cf6;text-decoration:none;font-weight:600">👁 The All Seeing Eye</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+HTML;
+}
+
 /* ── Main ── */
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -369,9 +498,84 @@ $to   = $cfg['notify_to'];
 
 /* ── Test email ── */
 if ($action === 'test') {
-    $subject = '🧪 Test — The All Seeing Eye notifications working';
-    $html    = buildAlertEmail('up.yourdomain.com', 'TEST', [], true);
+    /* Build a realistic demo digest showing all possible alert types */
+    $demoIssues = [
+        [
+            'domain'     => 'app.yourdomain.com',
+            'type'       => 'down',
+            'severity'   => 'critical',
+            'label'      => 'Domain Unreachable',
+            'detail'     => 'A record lookup returned no results — domain is not resolving.',
+            'latency'    => null,
+            'ssl_expiry' => date('Y-m-d', strtotime('+18 days')),
+            'ssl_days'   => 18,
+            'dmarc'      => 'quarantine',
+            'spf'        => '~all',
+            'ns'         => 'Cloudflare',
+            'mx'         => 'Google',
+        ],
+        [
+            'domain'     => 'mail.yourdomain.com',
+            'type'       => 'ssl_expiry',
+            'severity'   => 'critical',
+            'label'      => 'SSL Expiring — Urgent',
+            'detail'     => 'Certificate expires in 5 days.',
+            'latency'    => 84,
+            'ssl_expiry' => date('Y-m-d', strtotime('+5 days')),
+            'ssl_days'   => 5,
+            'dmarc'      => 'reject',
+            'spf'        => '~all',
+            'ns'         => 'AWS',
+            'mx'         => 'ProtonMail',
+        ],
+        [
+            'domain'     => 'blog.yourdomain.com',
+            'type'       => 'dmarc_missing',
+            'severity'   => 'warning',
+            'label'      => 'DMARC Missing',
+            'detail'     => 'No DMARC policy — domain is vulnerable to email spoofing.',
+            'latency'    => 210,
+            'ssl_expiry' => date('Y-m-d', strtotime('+90 days')),
+            'ssl_days'   => 90,
+            'dmarc'      => 'missing',
+            'spf'        => '~all',
+            'ns'         => 'SiteGround',
+            'mx'         => 'Google',
+        ],
+    ];
+
+    $subject = '🧪 Test — The All Seeing Eye notification digest';
+    $html    = buildDigestEmail($demoIssues, 34, 1);
     $result  = sendViaResend($apiKey, $from, $to, $subject, $html);
+    echo json_encode($result);
+    exit;
+}
+
+/* ── Health digest (multi-domain report) ── */
+if ($action === 'digest') {
+    $issues       = $posted['issues']         ?? [];
+    $totalDomains = intval($posted['total_domains'] ?? 0);
+    $domainsDown  = intval($posted['domains_down']  ?? 0);
+
+    if (empty($issues) || !is_array($issues)) {
+        echo json_encode(['ok' => false, 'message' => 'No issues provided']);
+        exit;
+    }
+
+    /* Count critical issues for subject line */
+    $critCount = count(array_filter($issues, fn($i) => ($i['severity'] ?? '') === 'critical'));
+    $warnCount = count($issues) - $critCount;
+    $subject   = $critCount > 0
+        ? "🚨 {$critCount} critical alert" . ($critCount !== 1 ? 's' : '') . " — The All Seeing Eye"
+        : "⚠️ {$warnCount} health warning" . ($warnCount !== 1 ? 's' : '') . " — The All Seeing Eye";
+
+    if (!checkRateLimit()) {
+        echo json_encode(['ok' => false, 'message' => 'Rate limit reached (10 emails/hour)']);
+        exit;
+    }
+
+    $html   = buildDigestEmail($issues, $totalDomains, $domainsDown);
+    $result = sendViaResend($apiKey, $from, $to, $subject, $html);
     echo json_encode($result);
     exit;
 }

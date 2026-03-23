@@ -1413,7 +1413,19 @@ async function checkAll() {
         }
       });
       if (updated) { renderTable(); updateStats(); }
+
+      /* After SSL data is merged, run the full health report scan.
+       * This is the right moment — both DNS and SSL data are now complete.
+       * sendHealthReport() checks cooldowns so it won't flood on every refresh. */
+      sendHealthReport();
     });
+  }
+
+  /* If all SSL data was already known (no needSSL), run health check now.
+   * If needSSL was non-empty, sendHealthReport() runs inside the .then() above
+   * after SSL data merges — no double-firing since cooldowns prevent that. */
+  if (needSSL.length === 0) {
+    sendHealthReport();
   }
 
   saveDomainsStats();
@@ -2619,6 +2631,221 @@ document.addEventListener('keydown', function(e) {
     if (m && m.classList.contains('open')) { closeNotifyModal(); }
   }
 });
+
+
+/* ────────────────────────────────────────────────────────────────
+   HEALTH REPORT NOTIFICATIONS  (v3.3.0+)
+   ─────────────────────────────────────────────────────────────────
+   After every full checkAll() cycle (including after SSL data arrives),
+   this function scans ALL domains for health issues and sends a single
+   digest email if anything is worth reporting.
+
+   Design decisions:
+   ─────────────────
+   • ONE email per full scan cycle (not one per domain) — avoids flooding
+     the inbox when multiple domains have the same issue.
+   • Deduplication: _notifyLastSent[key] tracks when each alert type was
+     last sent for each domain. Default cooldown: 24h for health issues,
+     immediate for DOWN/UP transitions (those fire in uptimeRecord).
+   • Threshold for "worth reporting":
+       - Any domain DOWN
+       - SSL expiring within 30 days
+       - DMARC missing or p=none
+       - SPF missing
+   • If nothing is wrong, no email is sent (and nothing is logged).
+   ──────────────────────────────────────────────────────────────── */
+
+/* Tracks last notification timestamp per domain+type.
+   Key format: "domain:type" e.g. "example.com:ssl_expiry"
+   Prevents re-sending the same alert every 3 minutes. */
+var _notifyLastSent = {};
+
+/* Cooldown periods (ms) for each alert type */
+var NOTIFY_COOLDOWN = {
+  ssl_expiry:      86400000,  /* 24h — SSL expiry won't change minute-to-minute */
+  dmarc_missing:   86400000,  /* 24h */
+  dmarc_none:      86400000,  /* 24h */
+  spf_missing:     86400000,  /* 24h */
+  down:            3600000,   /* 1h  — repeated downtime reminders if still down */
+};
+
+/**
+ * Check if a notification for domain+type is past its cooldown.
+ * @param {string} domain
+ * @param {string} type  — one of the NOTIFY_COOLDOWN keys
+ * @returns {boolean}  true = allowed to send
+ */
+function _notifyCooldownOk(domain, type) {
+  var key = domain + ':' + type;
+  var last = _notifyLastSent[key] || 0;
+  var cooldown = NOTIFY_COOLDOWN[type] || 86400000;
+  return (Date.now() - last) >= cooldown;
+}
+
+/**
+ * Mark a notification as sent (updates cooldown timestamp).
+ * @param {string} domain
+ * @param {string} type
+ */
+function _notifyMarkSent(domain, type) {
+  _notifyLastSent[domain + ':' + type] = Date.now();
+}
+
+/**
+ * Scan all domains after a full check cycle and send a digest email
+ * if any health issues are found.
+ *
+ * Called from checkAll() after both DNS and SSL data are available.
+ * Also called from sendTestNotification() with isTest=true.
+ *
+ * A "digest" combines all issues across all domains into ONE email —
+ * far more useful than per-domain emails for a monitoring dashboard.
+ *
+ * @param {boolean} [force=false]  If true, bypass cooldown (used for test)
+ */
+async function sendHealthReport(force) {
+  if (!_notifyConfig.enabled || !_notifyConfig.hasKey) return;
+
+  var issues = [];  /* array of issue objects to include in the digest */
+
+  DOMAINS.forEach(function(entry) {
+    var domain = entry.domain;
+    var st     = domainState[domain] || {};
+
+    /* ── DOWN ── */
+    if (st.up === false && (force || _notifyCooldownOk(domain, 'down'))) {
+      issues.push({
+        domain:     domain,
+        type:       'down',
+        severity:   'critical',
+        label:      'Domain Unreachable',
+        detail:     'A record lookup returned no results — domain is not resolving.',
+        latency:    null,
+        ssl_expiry: entry.sslExpiry  || null,
+        ssl_days:   _calcSslDays(entry.sslExpiry),
+        dmarc:      entry.dmarc      || null,
+        spf:        entry.spf        || null,
+        ns:         entry.ns         || null,
+        mx:         entry.mxType     || null
+      });
+      if (!force) _notifyMarkSent(domain, 'down');
+    }
+
+    /* ── SSL expiry ── */
+    var sslDays = _calcSslDays(entry.sslExpiry);
+    if (sslDays !== null && sslDays <= 30) {
+      var sslType = sslDays <= 7 ? 'ssl_critical' : 'ssl_expiry';
+      /* Use ssl_expiry cooldown key for both */
+      if (force || _notifyCooldownOk(domain, 'ssl_expiry')) {
+        issues.push({
+          domain:     domain,
+          type:       sslType,
+          severity:   sslDays <= 7 ? 'critical' : 'warning',
+          label:      sslDays <= 0 ? 'SSL Expired' : (sslDays <= 7 ? 'SSL Expiring — Urgent' : 'SSL Expiring Soon'),
+          detail:     sslDays <= 0
+            ? 'Certificate has expired — visitors see a browser security warning.'
+            : 'Certificate expires in ' + sslDays + ' day' + (sslDays === 1 ? '' : 's') + '.',
+          latency:    st.latency     || null,
+          ssl_expiry: entry.sslExpiry,
+          ssl_days:   sslDays,
+          dmarc:      entry.dmarc    || null,
+          spf:        entry.spf      || null,
+          ns:         entry.ns       || null,
+          mx:         entry.mxType   || null
+        });
+        if (!force) _notifyMarkSent(domain, 'ssl_expiry');
+      }
+    }
+
+    /* ── DMARC missing ── */
+    if (entry.dmarc === 'missing' && (force || _notifyCooldownOk(domain, 'dmarc_missing'))) {
+      issues.push({
+        domain:   domain,
+        type:     'dmarc_missing',
+        severity: 'warning',
+        label:    'DMARC Missing',
+        detail:   'No DMARC policy — domain is vulnerable to email spoofing.',
+        ssl_expiry: entry.sslExpiry || null,
+        ssl_days:   sslDays,
+        dmarc:    'missing',
+        spf:      entry.spf   || null,
+        ns:       entry.ns    || null,
+        mx:       entry.mxType || null
+      });
+      if (!force) _notifyMarkSent(domain, 'dmarc_missing');
+    }
+
+    /* ── DMARC p=none (defined but not enforced) ── */
+    if (entry.dmarc === 'none' && (force || _notifyCooldownOk(domain, 'dmarc_none'))) {
+      issues.push({
+        domain:   domain,
+        type:     'dmarc_none',
+        severity: 'warning',
+        label:    'DMARC Not Enforced',
+        detail:   'p=none — DMARC is defined but provides no protection. Use p=quarantine or p=reject.',
+        ssl_expiry: entry.sslExpiry || null,
+        ssl_days:   sslDays,
+        dmarc:    'none',
+        spf:      entry.spf   || null,
+        ns:       entry.ns    || null,
+        mx:       entry.mxType || null
+      });
+      if (!force) _notifyMarkSent(domain, 'dmarc_none');
+    }
+
+    /* ── SPF missing ── */
+    if (!entry.spf && (force || _notifyCooldownOk(domain, 'spf_missing'))) {
+      issues.push({
+        domain:   domain,
+        type:     'spf_missing',
+        severity: 'warning',
+        label:    'SPF Missing',
+        detail:   'No SPF record — increases spam rejection risk.',
+        ssl_expiry: entry.sslExpiry || null,
+        ssl_days:   sslDays,
+        dmarc:    entry.dmarc  || null,
+        spf:      null,
+        ns:       entry.ns     || null,
+        mx:       entry.mxType || null
+      });
+      if (!force) _notifyMarkSent(domain, 'spf_missing');
+    }
+  });
+
+  if (issues.length === 0) return;  /* all clear — no email */
+
+  /* Send single digest covering all issues */
+  try {
+    var res = await fetch('./notify.php', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        action: 'digest',
+        issues: issues,
+        total_domains:  DOMAINS.length,
+        domains_down:   DOMAINS.filter(function(d) { return (domainState[d.domain]||{}).up === false; }).length
+      })
+    });
+    var json = await res.json();
+    if (json && json.ok) {
+      console.log('[Eye] Health digest sent (' + issues.length + ' issue(s))');
+    }
+  } catch(e) {
+    /* Silent — notifications are best-effort */
+  }
+}
+
+/**
+ * Calculate days until SSL expiry from a date string.
+ * @param {string|null} sslExpiry  — "YYYY-MM-DD" or null
+ * @returns {number|null}
+ */
+function _calcSslDays(sslExpiry) {
+  if (!sslExpiry) return null;
+  var expMs = new Date(sslExpiry).getTime();
+  if (isNaN(expMs)) return null;
+  return Math.ceil((expMs - Date.now()) / 86400000);
+}
 
 /* ── Page bootstrap ─────────────────────────────────────────────
    Order of operations on every page load:

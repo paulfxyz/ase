@@ -17,7 +17,7 @@ RewriteRule ^webhook\.do$ webhook.do [L,T=text/html]
 # ── Protect sensitive files ───────────────────────────────────────
 # Protect sensitive data files from direct browser access.
 # These are read/written by PHP scripts internally only.
-<FilesMatch "^(ase_config\.json|uptime\.json|notify_secret\.key|notify_rate\.json|domains\.stats|cron\.log)$">
+<FilesMatch "^(ase_config\.json|uptime\.json|notify_secret\.key|notify_rate\.json|cron_notify_sent\.json|domains\.stats|cron\.log)$">
     Order Allow,Deny
     Deny from all
 </FilesMatch>
