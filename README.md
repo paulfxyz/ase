@@ -6,7 +6,7 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-3.0.0-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-3.1.0-brightgreen?style=for-the-badge)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-no_server_needed-blue?style=for-the-badge)
 
 **Open-source uptime, DNS, SSL and latency monitor. One HTML file. Zero dependencies.**
@@ -50,6 +50,8 @@ A **self-hosted infrastructure dashboard** that monitors uptime, DNS records, SS
 - 🔐 **PIN-protected** dashboard (SHA-256 hashed — no plaintext stored)
 - 🌓 **Light / Dark mode** toggle (light by default)
 - 📱 **Mobile-first** — native numeric keyboard on touch devices, touch-optimised modals
+- 🔔 **Email alerts** — downtime + recovery notifications via Resend API (free tier)
+- 📊 **Cross-device uptime** — server-side `uptime.json` shared across all browsers and devices
 - ⚡ **Progressive scan** — rows light up one batch at a time as results arrive
 - 🔄 **Per-row refresh** — re-scan any single domain with the ↺ button
 - ⏱️ **Auto-refresh** every 3 minutes with live countdown
@@ -279,6 +281,13 @@ The skeleton → progressive fill is intentional UX: the user sees their domains
 ## 📝 Changelog
 
 > Full changelog: **[CHANGELOG.md](./CHANGELOG.md)**
+
+### 🔖 v3.1.0 — 2026-03-23
+- 🔔 **feat:** Email notifications — Resend API integration; downtime + recovery alerts; API key encrypted AES-256-GCM server-side
+- 📊 **feat:** Cross-device uptime — `uptime.json` via `uptime-write.php`; every check from any browser/device contributes to shared history
+- 🏗️ **feat:** `uptime-write.php` — server-side uptime accumulation endpoint with atomic writes + 500-domain cap
+- 🏗️ **feat:** `notify.php` — email sender with rate limiting (10/hour), recovery detection, beautiful HTML emails
+- ⚙️ **feat:** Notifications modal — Resend API key, from/to email, enable toggle, test button, encrypted key display
 
 ### 🔖 v3.0.0 — 2026-03-22
 - 📱 **feat:** Mobile PIN — native numeric keyboard input on touch devices (no double-tap zoom, no numpad)

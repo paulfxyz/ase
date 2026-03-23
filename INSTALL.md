@@ -16,7 +16,9 @@ Runs entirely in the browser — no framework, no build step, no database.
 | `domains.stats` | CSV snapshot updated after every check (auto-created if writable) |
 | `domains.json` | Written by `update-stats.php` — feeds SSL expiry data to the browser |
 | `update-stats.php` | Server-side cron script — real TLS cert checks, writes `domains.json` |
-| `config-write.php` | PHP config endpoint — reads/writes `ase_config.json` (PIN, theme, custom domains) |
+| `config-write.php` | PHP config endpoint — reads/writes `ase_config.json` (PIN, theme, notifications) |
+| `uptime-write.php` | PHP uptime endpoint — reads/writes `uptime.json` (cross-device history) |
+| `notify.php` | PHP email sender — Resend API with AES-256-GCM encrypted key storage |
 | `ase_config.json` | Auto-created on first PIN change — persists settings across all browsers/devices |
 | `.htaccess` | Apache config: no-cache headers + webhook routing + file protection |
 | `webhook.do` | Headless endpoint for external cron services (cron-job.org etc.) |
@@ -330,6 +332,70 @@ chmod 755 /home/YOURUSER/public_html/uptime/
 ```
 
 The file itself (`ase_config.json`) will be created with 644 permissions automatically.
+
+---
+
+
+## 🔔 Setting Up Email Notifications
+
+Email alerts are sent via [Resend](https://resend.com) — a developer-friendly email API with a **free tier** (100 emails/day, no credit card required).
+
+### Step 1 — Get a Resend account
+
+1. Sign up at [resend.com](https://resend.com)
+2. Verify a sending domain (or use Resend's shared `onboarding@resend.dev` sender for testing)
+3. Go to **API Keys** → **Create API Key** → copy the key (starts with `re_`)
+
+### Step 2 — Configure in the dashboard
+
+1. Open your dashboard → click **More ⋮** → **Notifications**
+2. Paste your Resend API key in the field
+3. Enter your **From email** (must match your verified domain in Resend)
+4. Enter the **To email** (where alerts will be sent)
+5. Enable the toggle and click **Save**
+6. Click **Send Test** to verify everything works
+
+### How API key security works
+
+Your Resend API key is **never stored in plaintext**:
+
+1. You type the key in the browser
+2. The browser sends it (over HTTPS) to `config-write.php`
+3. `config-write.php` generates a random 256-bit secret (`notify_secret.key`) on first use
+4. The key is encrypted with AES-256-GCM using a key derived from that secret
+5. Only the encrypted ciphertext (`notify_api_key_enc`) is stored in `ase_config.json`
+6. When sending an alert, `notify.php` reads the secret from disk and decrypts on-the-fly
+
+| File | Contents | Web-accessible? |
+|---|---|---|
+| `ase_config.json` | Encrypted API key + settings | ❌ Blocked by `.htaccess` |
+| `notify_secret.key` | Server-side decryption key | ❌ Blocked by `.htaccess` |
+| `notify_rate.json` | Rate limit tracker | ❌ Blocked by `.htaccess` |
+
+### Rate limiting
+
+To prevent alert storms, `notify.php` enforces a maximum of **10 emails per hour**. If more than 10 downtime events occur in an hour, subsequent alerts are silently dropped until the hour resets.
+
+### When alerts fire
+
+| Event | Email sent? |
+|---|---|
+| Domain goes DOWN (A record fails) | ✅ Yes |
+| Domain recovers (UP again) | ✅ Yes |
+| Manual refresh detects new downtime | ✅ Yes |
+| Server cron detects downtime | ✅ Yes (if `update-stats.php` is configured) |
+| Same domain still down on next check | ❌ No (only on state change) |
+
+---
+
+## 📊 Cross-Device Uptime History
+
+Uptime data is stored in `uptime.json` on the server via `uptime-write.php`. This means:
+- Every device, browser, and scheduled cron contributes to the same history
+- Data survives clearing browser cookies or switching devices
+- The STATUS column hover tooltip shows cumulative history across all sources
+
+**Fallback:** If `uptime-write.php` is unavailable (static host), the browser cookie fallback is used automatically — same behaviour as v3.0.0 and earlier.
 
 ---
 

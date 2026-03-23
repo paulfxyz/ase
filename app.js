@@ -136,7 +136,10 @@ async function loadConfig() {
     PIN_HASH = cookieHash;
   }
 
-  /* 2. Try server config (authoritative, works across devices/incognito) */
+  /* 2. Load uptime data from server in parallel with config */
+  var uptimePromise = uptimeLoad();
+
+  /* 3. Try server config (authoritative, works across devices/incognito) */
   try {
     var res = await fetch('./config-write.php', { cache: 'no-cache' });
     if (res.ok) {
@@ -155,10 +158,16 @@ async function loadConfig() {
         document.documentElement.setAttribute('data-theme', cfg.theme);
         if (cb) cb.checked = (cfg.theme === 'light');
       }
+
+      /* Apply notification config */
+      applyNotifyConfig(cfg);
     }
   } catch(e) {
     /* config-write.php unavailable (static host, permissions) — silently continue */
   }
+
+  /* Wait for uptime load to complete */
+  await uptimePromise;
 }
 
 /**
@@ -417,26 +426,47 @@ var DOH           = 'https://cloudflare-dns.com/dns-query?name=';
 
 
 /* ────────────────────────────────────────────────────────────────
-   UPTIME PERSISTENCE
+   UPTIME PERSISTENCE  (v3.1.0+)
    ─────────────────────────────────────────────────────────────
-   Uptime data persists across page loads via a cookie.
-   Each domain tracks: total checks, successful (UP) checks,
-   first-seen timestamp, and last-down timestamp.
+   Uptime data is stored server-side in uptime.json via uptime-write.php.
+   This means ALL devices and browsers share the same history — checks from
+   any visitor accumulate into one authoritative record.
 
-   Cookie: "ase_uptime" (JSON, max-age 1 year)
-   Format: { "domain.com": { checks:N, ups:N, firstSeen:ts, lastDown:ts } }
+   Architecture:
+   1. On startup, uptimeLoad() fetches uptime.json from the server.
+      Falls back to the ase_uptime cookie if the server is unavailable.
+   2. After each checkDomain(), uptimeRecord() stores the result in memory
+      AND queues a server write (debounced — fires once after all batch checks).
+   3. uptimeSave() POSTs delta records to uptime-write.php. Also writes
+      the cookie as a local fallback (survives server downtime).
 
-   Why cookie vs localStorage:
-   - localStorage is blocked in sandboxed iframes
-   - Cookies work in all contexts including incognito*
-   - 4KB cookie limit is enough for ~50 domains
-   * Chrome incognito clears cookies on session end — acceptable tradeoff
+   uptime.json format: { "domain.com": { checks, ups, firstSeen, lastDown } }
+   Cookie fallback:    ase_uptime (same JSON, 4KB cap, 1-year expiry)
    ──────────────────────────────────────────────────────────────── */
 
-var _uptimeData = {}; /* loaded from cookie on init */
+var _uptimeData    = {};    /* in-memory map, loaded from server or cookie */
+var _uptimeDelta   = {};    /* domains with pending writes since last save */
+var _uptimeFromServer = false; /* true once server data is loaded */
 
-/** Load uptime data from cookie */
-function uptimeLoad() {
+/**
+ * Load uptime data from server (uptime-write.php) with cookie fallback.
+ * Called once at startup, before the first render.
+ */
+async function uptimeLoad() {
+  /* 1. Try server (authoritative — shared across all devices) */
+  try {
+    var res = await fetch('./uptime-write.php', { cache: 'no-cache' });
+    if (res.ok) {
+      var data = await res.json();
+      if (data && typeof data === 'object') {
+        _uptimeData = data;
+        _uptimeFromServer = true;
+        return;
+      }
+    }
+  } catch(e) { /* server unavailable — fall through to cookie */ }
+
+  /* 2. Cookie fallback (single-device history) */
   try {
     var match = document.cookie.match(/(?:^|; )ase_uptime=([^;]*)/);
     if (match) {
@@ -445,11 +475,37 @@ function uptimeLoad() {
   } catch(e) { _uptimeData = {}; }
 }
 
-/** Save uptime data to cookie (1-year expiry) */
-function uptimeSave() {
+/**
+ * Save uptime data.
+ * POSTs each delta record to uptime-write.php (server-side accumulation),
+ * and also writes the full snapshot to the ase_uptime cookie as fallback.
+ */
+async function uptimeSave() {
+  /* Server: POST only domains that changed this cycle (delta) */
+  if (Object.keys(_uptimeDelta).length > 0) {
+    var deltas = _uptimeDelta;
+    _uptimeDelta = {};
+    Object.keys(deltas).forEach(async function(domain) {
+      var d = deltas[domain];
+      try {
+        await fetch('./uptime-write.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain:    domain,
+            checks:    d.deltaChecks,
+            ups:       d.deltaUps,
+            firstSeen: _uptimeData[domain] ? _uptimeData[domain].firstSeen : Date.now(),
+            lastDown:  _uptimeData[domain] ? _uptimeData[domain].lastDown  : null
+          })
+        });
+      } catch(e) { /* server unavailable — cookie fallback below */ }
+    });
+  }
+
+  /* Cookie: always write full snapshot as local fallback */
   try {
     var value = encodeURIComponent(JSON.stringify(_uptimeData));
-    /* Trim to avoid exceeding 4KB — keep most-checked domains */
     if (value.length > 3800) {
       var sorted = Object.keys(_uptimeData)
         .sort(function(a, b) { return (_uptimeData[b].checks||0) - (_uptimeData[a].checks||0); })
@@ -464,7 +520,19 @@ function uptimeSave() {
 }
 
 /** Record a check result for a domain */
-function uptimeRecord(domain, isUp) {
+/**
+ * Record a single check result for a domain.
+ * Updates in-memory data, marks delta for server sync, and detects
+ * UP→DOWN transitions for email notifications.
+ *
+ * @param {string}  domain
+ * @param {boolean} isUp    true = A record resolved; false = no response
+ * @param {number|null} latency  round-trip ms or null
+ */
+function uptimeRecord(domain, isUp, latency) {
+  var wasUp = _uptimeData[domain] ? (_uptimeData[domain].ups > 0 &&
+    _uptimeData[domain].ups === _uptimeData[domain].checks) : null;
+
   if (!_uptimeData[domain]) {
     _uptimeData[domain] = { checks: 0, ups: 0, firstSeen: Date.now(), lastDown: null };
   }
@@ -474,6 +542,20 @@ function uptimeRecord(domain, isUp) {
     rec.ups++;
   } else {
     rec.lastDown = Date.now();
+  }
+
+  /* Track delta for server sync */
+  if (!_uptimeDelta[domain]) _uptimeDelta[domain] = { deltaChecks: 0, deltaUps: 0 };
+  _uptimeDelta[domain].deltaChecks++;
+  if (isUp) _uptimeDelta[domain].deltaUps++;
+
+  /* Detect UP→DOWN transition and trigger notification */
+  if (wasUp === true && !isUp) {
+    notifyDowntime(domain, 'DOWN', latency);
+  }
+  /* Detect DOWN→UP recovery */
+  if (wasUp === false && isUp && rec.checks > 1) {
+    notifyDowntime(domain, 'UP', latency);
   }
 }
 
@@ -519,7 +601,7 @@ function uptimeTooltipHTML(domain, currentState) {
 }
 
 /* Load uptime data immediately */
-uptimeLoad();
+/* uptimeLoad() is called async in bootstrap — see loadConfig() sequence */
 
 /* Snapshot of the Refresh button's original HTML — captured at first use.
  * Used to restore the button after loading/countdown states. */
@@ -1187,7 +1269,7 @@ async function checkDomain(domain, fullScan) {
     st.latency = ms;
     st.history.push({ up: up, latency: ms });
     if (st.history.length > 20) st.history.shift();
-    uptimeRecord(domain, up);
+    uptimeRecord(domain, up, ms);
   } catch(e) {
     st.up      = false;
     st.latency = null;
@@ -2267,6 +2349,245 @@ function pinMobileInput(el) {
     }, 150);
   }
 }
+
+
+/* ────────────────────────────────────────────────────────────────
+   EMAIL NOTIFICATIONS (v3.1.0+)
+   ─────────────────────────────────────────────────────────────────
+   Sends email alerts via notify.php → Resend API when a domain
+   transitions UP→DOWN or DOWN→UP (recovery).
+
+   Configuration is stored encrypted in ase_config.json.
+   The API key is encrypted server-side (AES-256-GCM) and never
+   exposed to the browser in plaintext.
+
+   Rate limiting (server-side): max 10 emails per hour.
+   ──────────────────────────────────────────────────────────────── */
+
+/** In-memory notification config (loaded from server config) */
+var _notifyConfig = { enabled: false, from: '', to: '' };
+
+/** Update notification config from server config object */
+function applyNotifyConfig(cfg) {
+  _notifyConfig.enabled = !!(cfg && cfg.notify_enabled);
+  _notifyConfig.from    = (cfg && cfg.notify_from) || '';
+  _notifyConfig.to      = (cfg && cfg.notify_to)   || '';
+  _notifyConfig.hasKey  = !!(cfg && cfg.notify_api_key_enc);
+  /* Update menu dot once config is loaded */
+  if (typeof _notifyUpdateMenuDot === 'function') _notifyUpdateMenuDot();
+}
+
+/**
+ * Fire a downtime or recovery notification.
+ * Non-blocking — errors are caught silently.
+ * Only fires if notifications are enabled and configured.
+ *
+ * @param {string} domain
+ * @param {string} status   "DOWN" | "UP"
+ * @param {number|null} latency
+ */
+async function notifyDowntime(domain, status, latency) {
+  if (!_notifyConfig.enabled || !_notifyConfig.hasKey) return;
+  try {
+    await fetch('./notify.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: domain, status: status, latency: latency || null, action: 'notify' })
+    });
+  } catch(e) { /* silent — notifications are best-effort */ }
+}
+
+/**
+ * Send a test email via notify.php.
+ * Returns { ok: true } or { error: '...' }.
+ */
+async function sendTestNotification() {
+  try {
+    var res = await fetch('./notify.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'test' })
+    });
+    return await res.json();
+  } catch(e) {
+    return { error: e.message };
+  }
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   NOTIFICATIONS MODAL  (v3.1.0+)
+   ─────────────────────────────────────────────────────────────────
+   UI for configuring Resend email alerts.
+   Settings are saved to ase_config.json via config-write.php.
+   The API key is encrypted server-side before storage — this JS
+   only ever sees the plaintext key while the user is typing.
+   ──────────────────────────────────────────────────────────────── */
+
+function openNotifyModal() {
+  var m = document.getElementById('notify-modal');
+  if (!m) return;
+  m.classList.add('open');
+  var body = m.querySelector('.modal-body');
+  if (body) body.scrollTop = 0;
+
+  /* Populate fields from in-memory config */
+  var toggle = document.getElementById('notify-enabled-toggle');
+  if (toggle) {
+    toggle.checked = _notifyConfig.enabled;
+    _notifyUpdateToggleTrack(toggle.checked);
+  }
+  var fromEl = document.getElementById('notify-from');
+  var toEl   = document.getElementById('notify-to');
+  if (fromEl) fromEl.value = _notifyConfig.from || '';
+  if (toEl)   toEl.value   = _notifyConfig.to   || '';
+
+  /* Show key status */
+  var keyStatus = document.getElementById('notify-key-status');
+  if (keyStatus) {
+    keyStatus.textContent = _notifyConfig.hasKey
+      ? '🔒 API key saved (encrypted server-side)'
+      : 'No API key saved yet';
+    keyStatus.style.color = _notifyConfig.hasKey ? 'var(--green)' : 'var(--text-muted)';
+  }
+
+  /* Clear any previous messages */
+  var msg = document.getElementById('notify-msg');
+  if (msg) msg.textContent = '';
+}
+
+function closeNotifyModal() {
+  var m = document.getElementById('notify-modal');
+  if (m) m.classList.remove('open');
+}
+
+function notifyToggleChanged(checkbox) {
+  _notifyUpdateToggleTrack(checkbox.checked);
+}
+
+function _notifyUpdateToggleTrack(checked) {
+  var track = document.getElementById('notify-toggle-track');
+  if (!track) return;
+  track.style.background = checked ? 'var(--accent)' : 'var(--border)';
+  var thumb = track.querySelector('span');
+  if (thumb) thumb.style.transform = checked ? 'translateX(20px)' : 'translateX(0)';
+}
+
+function notifyToggleKeyVisibility() {
+  var input = document.getElementById('notify-api-key');
+  var icon  = document.getElementById('notify-eye-icon');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    input.type = 'password';
+    if (icon) icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
+/**
+ * Save notification settings to server via config-write.php.
+ * Only sends the API key if the field is non-empty (avoids overwriting
+ * an existing encrypted key with an empty string).
+ */
+async function saveNotifySettings() {
+  var btn     = document.querySelector('#notify-modal .btn-accent');
+  var msg     = document.getElementById('notify-msg');
+  var enabled = document.getElementById('notify-enabled-toggle').checked;
+  var from    = (document.getElementById('notify-from').value || '').trim();
+  var to      = (document.getElementById('notify-to').value || '').trim();
+  var apiKey  = (document.getElementById('notify-api-key').value || '').trim();
+
+  /* Validate */
+  if (enabled) {
+    if (!from || !from.includes('@')) {
+      if (msg) { msg.textContent = '⚠ Please enter a valid From email.'; msg.style.color = 'var(--red)'; }
+      return;
+    }
+    if (!to || !to.includes('@')) {
+      if (msg) { msg.textContent = '⚠ Please enter a valid To email.'; msg.style.color = 'var(--red)'; }
+      return;
+    }
+    if (!apiKey && !_notifyConfig.hasKey) {
+      if (msg) { msg.textContent = '⚠ Please enter your Resend API key.'; msg.style.color = 'var(--red)'; }
+      return;
+    }
+  }
+
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
+  var payload = {
+    notify_enabled: enabled,
+    notify_from:    from,
+    notify_to:      to
+  };
+  if (apiKey) payload.notify_api_key = apiKey; /* only send if user typed a new key */
+
+  try {
+    var res  = await saveConfig(payload);
+    if (res) {
+      /* Update in-memory config */
+      _notifyConfig.enabled = enabled;
+      _notifyConfig.from    = from;
+      _notifyConfig.to      = to;
+      if (apiKey) _notifyConfig.hasKey = true;
+
+      /* Update status dot in menu */
+      _notifyUpdateMenuDot();
+
+      /* Clear API key field (show status instead) */
+      document.getElementById('notify-api-key').value = '';
+      var keyStatus = document.getElementById('notify-key-status');
+      if (keyStatus) {
+        keyStatus.textContent = '🔒 API key saved (encrypted server-side)';
+        keyStatus.style.color = 'var(--green)';
+      }
+
+      if (msg) { msg.textContent = '✓ Settings saved.'; msg.style.color = 'var(--green)'; }
+    } else {
+      if (msg) { msg.textContent = '⚠ Save failed — is config-write.php uploaded?'; msg.style.color = 'var(--red)'; }
+    }
+  } catch(e) {
+    if (msg) { msg.textContent = '⚠ Error: ' + e.message; msg.style.color = 'var(--red)'; }
+  }
+
+  if (btn) { btn.textContent = 'Save'; btn.disabled = false; }
+}
+
+/** Update the green dot in the More menu to reflect notification status */
+function _notifyUpdateMenuDot() {
+  var dot = document.getElementById('notify-status-dot');
+  if (!dot) return;
+  dot.style.display = (_notifyConfig.enabled && _notifyConfig.hasKey) ? 'inline-block' : 'none';
+}
+
+/** Show result of test email send */
+function notifyShowTestResult(result) {
+  var msg = document.getElementById('notify-msg');
+  if (!msg) return;
+  if (result && result.ok) {
+    msg.textContent = '✓ Test email sent! Check your inbox.';
+    msg.style.color = 'var(--green)';
+  } else {
+    var err = (result && result.error) ? result.error : 'Unknown error';
+    /* Handle not-configured gracefully */
+    if (err.includes('disabled') || err.includes('incomplete')) {
+      msg.textContent = '⚠ Save your settings first, then test.';
+    } else {
+      msg.textContent = '✗ Failed: ' + err;
+    }
+    msg.style.color = 'var(--red)';
+  }
+}
+
+/* Keyboard: Escape closes notification modal */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var m = document.getElementById('notify-modal');
+    if (m && m.classList.contains('open')) { closeNotifyModal(); }
+  }
+});
 
 /* ── Page bootstrap ─────────────────────────────────────────────
    Order of operations on every page load:

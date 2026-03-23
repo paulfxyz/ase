@@ -10,6 +10,83 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🔖 [3.1.0] — 2026-03-23
+
+### 🔔 Email Notifications · 📊 Cross-Device Uptime
+
+---
+
+#### Email Notifications via Resend
+
+A new **Notifications** entry in the More ⋮ menu opens a configuration modal. Users enter:
+- **Resend API key** — sent to `config-write.php` which encrypts it AES-256-GCM before storing in `ase_config.json`
+- **From email** — must be a verified sender domain in Resend
+- **To email** — notification recipient
+- **Enable toggle** — on/off without losing settings
+- **Send Test** — fires a test email immediately to verify the setup
+
+`notify.php` handles sending:
+1. Reads `notify_api_key_enc` from `ase_config.json` and decrypts it using the server-side secret (`notify_secret.key`)
+2. Builds a styled HTML email (green/red header, domain, status, latency, timestamp)
+3. POSTs to `https://api.resend.com/emails`
+4. Enforces rate limit: max 10 emails/hour (tracked in `notify_rate.json`)
+5. Handles both `DOWN` (domain unreachable) and `UP` (recovery) events
+
+**Security design:**
+- The Resend API key is **never stored or transmitted in plaintext** once saved
+- `notify_secret.key` is auto-generated (256-bit random) on first use, `chmod 0600`, protected by `.htaccess`
+- Decryption only happens server-side inside `notify.php` — the browser only ever sees the key while the user is typing in the modal
+- `notify_rate.json` and `notify_secret.key` blocked from direct HTTP access via `.htaccess`
+
+**Trigger logic in `uptimeRecord()`:**
+- Detects UP→DOWN transitions (was up last check, now down) → fires `notifyDowntime(domain, 'DOWN', latency)`
+- Detects DOWN→UP transitions (was down, now recovered) → fires `notifyDowntime(domain, 'UP', latency)`
+- Non-blocking: `notifyDowntime()` uses fire-and-forget `fetch()` — never delays the check cycle
+
+#### Cross-Device Uptime History (`uptime.json`)
+
+**Previous behaviour:** Uptime was stored in the `ase_uptime` browser cookie — isolated per device, lost in incognito, capped at 4KB.
+
+**New behaviour:** `uptime-write.php` provides a server-side accumulation endpoint. `uptime.json` is a single shared record updated by every check from every device.
+
+Architecture:
+1. `loadConfig()` now also calls `uptimeLoad()` — fetches `uptime.json` on startup (or falls back to cookie if PHP unavailable)
+2. `uptimeRecord()` now tracks a per-cycle delta (`_uptimeDelta`) in addition to updating `_uptimeData`
+3. After each `checkAll()`, `uptimeSave()` POSTs deltas to `uptime-write.php` (one POST per changed domain) and writes the cookie fallback
+4. `uptime-write.php` merges incoming deltas into `uptime.json` atomically (temp file + rename + LOCK_EX)
+
+`uptime.json` stores up to 500 domains (trims least-checked). Protected from direct HTTP access via `.htaccess`.
+
+**Cookie fallback:** The `ase_uptime` cookie is still written after each save. If `uptime-write.php` is unavailable (static host), behaviour is identical to v3.0.0 — no regression.
+
+### ✨ Added
+
+- **`notify.php`** — Resend email sender (AES-256-GCM decryption, rate limit, HTML template)
+- **`uptime-write.php`** — server-side uptime accumulation (GET + POST, atomic writes)
+- **`notifyDowntime(domain, status, latency)`** — fire-and-forget notification trigger
+- **`sendTestNotification()`** — sends test email via notify.php
+- **`applyNotifyConfig(cfg)`** — applies server config to `_notifyConfig` in-memory
+- **`_notifyConfig`** — in-memory notification settings object
+- **`_uptimeDelta`** — per-cycle delta tracking for efficient server sync
+- **`openNotifyModal()` / `closeNotifyModal()`** — modal open/close
+- **`saveNotifySettings()`** — saves notification config via `saveConfig()`
+- **`notifyToggleChanged()`, `notifyToggleKeyVisibility()`, `notifyShowTestResult()`** — UI helpers
+- **`_notifyUpdateMenuDot()`** — shows green dot in More menu when notifications active
+- **Notifications modal** in `index.html` — enable toggle, API key field (password + reveal), from/to email, test button
+- **"Notifications" entry** in More ⋮ dropdown with active indicator dot
+- **`config-write.php`** — extended with `notify_enabled`, `notify_from`, `notify_to`, `notify_api_key` (encrypts on write), `notify_api_key_clear` fields
+- **`.htaccess`** — `uptime.json`, `notify_secret.key`, `notify_rate.json` added to protected files list
+
+### 🔄 Changed
+
+- `app.js` — `uptimeLoad()`: now async, fetches from server first, cookie fallback
+- `app.js` — `uptimeSave()`: POSTs deltas to `uptime-write.php`; cookie write retained
+- `app.js` — `uptimeRecord(domain, isUp, latency)`: accepts latency param; tracks delta; detects UP↔DOWN transitions
+- `app.js` — `loadConfig()`: calls `uptimeLoad()` in parallel with config fetch; calls `applyNotifyConfig()`
+- `app.js` — `checkDomain()`: passes `ms` (latency) to `uptimeRecord()`
+
+---
+
 ## 🔖 [3.0.0] — 2026-03-22
 
 ### 📱 Mobile-First Overhaul — Native PIN Keyboard · Rebuilt Modal System

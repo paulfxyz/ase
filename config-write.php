@@ -12,6 +12,10 @@
  *   "pin_hash":        "sha256_hex_string",   // 64 hex chars
  *   "theme":           "light" | "dark",      // default theme preference
  *   "custom_domains":  ["dom1.com", ...],     // domains added via UI
+ *   "notify_enabled":   true | false,            // email notifications on/off
+ *   "notify_from":      "from@example.com",       // sender email (Resend verified)
+ *   "notify_to":        "to@example.com",         // recipient email
+ *   "notify_api_key_enc": "base64...",            // AES-256-GCM encrypted Resend key
  *   "updated_at":      "ISO 8601 timestamp"
  * }
  *
@@ -169,9 +173,72 @@ if ($method === 'POST') {
         $changed = true;
     }
 
+    /* ── Notification settings ── */
+    if (isset($posted['notify_enabled'])) {
+        $config['notify_enabled'] = (bool)$posted['notify_enabled'];
+        $changed = true;
+    }
+
+    if (isset($posted['notify_from'])) {
+        $from = filter_var(trim($posted['notify_from']), FILTER_VALIDATE_EMAIL);
+        if (!$from) {
+            http_response_code(400);
+            echo json_encode(['error' => 'notify_from must be a valid email address']);
+            exit;
+        }
+        $config['notify_from'] = $from;
+        $changed = true;
+    }
+
+    if (isset($posted['notify_to'])) {
+        $to = filter_var(trim($posted['notify_to']), FILTER_VALIDATE_EMAIL);
+        if (!$to) {
+            http_response_code(400);
+            echo json_encode(['error' => 'notify_to must be a valid email address']);
+            exit;
+        }
+        $config['notify_to'] = $to;
+        $changed = true;
+    }
+
+    /* Resend API key — encrypted server-side before storing.
+       The browser sends the plaintext key; this endpoint encrypts it
+       using the same AES-256-GCM mechanism as notify.php. */
+    if (isset($posted['notify_api_key'])) {
+        $key = trim($posted['notify_api_key']);
+        if (strlen($key) < 10) {
+            http_response_code(400);
+            echo json_encode(['error' => 'notify_api_key appears too short']);
+            exit;
+        }
+
+        /* Load or create the server-side secret */
+        $secretFile = __DIR__ . '/notify_secret.key';
+        if (file_exists($secretFile)) {
+            $secret = trim(file_get_contents($secretFile));
+        } else {
+            $secret = bin2hex(random_bytes(32));
+            file_put_contents($secretFile, $secret);
+            chmod($secretFile, 0600);
+        }
+
+        /* Encrypt using AES-256-GCM */
+        $encKey  = hash('sha256', $secret, true);
+        $iv      = random_bytes(12);
+        $ciphertext = openssl_encrypt($key, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag);
+        $config['notify_api_key_enc'] = base64_encode($iv . $tag . $ciphertext);
+        $changed = true;
+    }
+
+    /* Allow clearing the API key */
+    if (isset($posted['notify_api_key_clear']) && $posted['notify_api_key_clear'] === true) {
+        unset($config['notify_api_key_enc']);
+        $changed = true;
+    }
+
     if (!$changed) {
         http_response_code(400);
-        echo json_encode(['error' => 'No valid fields provided (pin_hash, theme, custom_domains)']);
+        echo json_encode(['error' => 'No valid fields provided (pin_hash, theme, custom_domains, notify_*)']);
         exit;
     }
 
