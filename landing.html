@@ -229,22 +229,140 @@ nav {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--space-5);
   margin-left: auto;
   list-style: none;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .nav-links a {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
   font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   color: var(--text-muted);
+  white-space: nowrap;
   transition: color var(--ease);
 }
 
 .nav-links a:hover { color: var(--accent); }
+
+/* Hamburger button (hidden on desktop) */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--ease), border-color var(--ease);
+  margin-left: var(--space-2);
+}
+
+.nav-hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  transition: transform 250ms ease, opacity 250ms ease, background var(--ease);
+}
+
+.nav-hamburger:hover { border-color: var(--accent); background: var(--accent-soft); }
+.nav-hamburger:hover span { background: var(--accent); }
+
+/* Hamburger → X animation */
+.nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile nav drawer */
+.nav-mobile {
+  display: none;
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-4) var(--space-6);
+  flex-direction: column;
+  gap: var(--space-1);
+  transform: translateY(-8px);
+  opacity: 0;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease;
+}
+
+[data-theme="dark"] .nav-mobile {
+  background: rgba(13, 11, 30, 0.97);
+  backdrop-filter: blur(20px);
+}
+
+.nav-mobile.open {
+  display: flex;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.nav-mobile a {
+  display: block;
+  padding: var(--space-3) var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  transition: background var(--ease), color var(--ease);
+}
+
+.nav-mobile a:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.nav-mobile-divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: var(--space-2) 0;
+}
+
+/* Mobile lang picker inside drawer */
+.nav-mobile-lang {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+
+.nav-mobile-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--ease);
+  white-space: nowrap;
+}
+
+.nav-mobile-lang-btn:hover,
+.nav-mobile-lang-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* Theme toggle */
 .theme-btn {
@@ -1441,11 +1559,14 @@ footer {
   .built-by     { grid-template-columns: 1fr; }
   .numbers-inner { grid-template-columns: repeat(3, 1fr); }
   .hood-grid { grid-template-columns: 1fr; }
+  /* Nav: hide links, show hamburger */
+  .nav-links { display: none; }
+  .lang-picker { display: none; } /* lang picker moves to mobile drawer */
+  .nav-hamburger { display: flex; }
 }
 
 @media (max-width: 640px) {
   nav { padding: 0 var(--space-4); }
-  .nav-links { display: none; }
   .feature-grid { grid-template-columns: 1fr; }
   .dash-stats { grid-template-columns: repeat(2, 1fr); }
   .hero-actions { flex-direction: column; align-items: center; }
@@ -1664,7 +1785,7 @@ footer {
       GitHub
     </a>
 
-    <!-- Language Picker -->
+    <!-- Language Picker (desktop) -->
     <div class="lang-picker" id="lang-picker">
       <button class="lang-trigger" id="lang-trigger" aria-label="Change language" aria-haspopup="true" aria-expanded="false">
         <span class="lang-flag" id="lang-flag">🇬🇧</span>
@@ -1685,8 +1806,37 @@ footer {
         <div class="lang-option" data-lang="hi" role="option"><span class="lang-opt-flag">🇮🇳</span><span class="lang-opt-name">हिंदी</span></div>
       </div>
     </div>
+
+    <!-- Hamburger (shown on ≤900px) -->
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-mobile">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
+
+<!-- Mobile nav drawer -->
+<div class="nav-mobile" id="nav-mobile" role="navigation" aria-label="Mobile navigation">
+  <a href="#features" data-i18n="nav_features" class="nav-mobile-link">Features</a>
+  <a href="#how-it-works" data-i18n="nav_how" class="nav-mobile-link">How it works</a>
+  <a href="#under-the-hood" data-i18n="nav_hood" class="nav-mobile-link">Under the hood</a>
+  <a href="#alerts" data-i18n="nav_alerts" class="nav-mobile-link">Alerts</a>
+  <a href="https://demo.mercury.sh" target="_blank" rel="noopener" data-i18n="nav_demo" class="nav-mobile-link">Demo</a>
+  <div class="nav-mobile-divider"></div>
+  <!-- Language grid -->
+  <div class="nav-mobile-lang" id="nav-mobile-lang">
+    <button class="nav-mobile-lang-btn" data-lang="en">🇬🇧 EN</button>
+    <button class="nav-mobile-lang-btn" data-lang="fr">🇫🇷 FR</button>
+    <button class="nav-mobile-lang-btn" data-lang="de">🇩🇪 DE</button>
+    <button class="nav-mobile-lang-btn" data-lang="es">🇪🇸 ES</button>
+    <button class="nav-mobile-lang-btn" data-lang="pt">🇵🇹 PT</button>
+    <button class="nav-mobile-lang-btn" data-lang="it">🇮🇹 IT</button>
+    <button class="nav-mobile-lang-btn" data-lang="tr">🇹🇷 TR</button>
+    <button class="nav-mobile-lang-btn" data-lang="ru">🇷🇺 RU</button>
+    <button class="nav-mobile-lang-btn" data-lang="zh">🇨🇳 ZH</button>
+    <button class="nav-mobile-lang-btn" data-lang="ja">🇯🇵 JA</button>
+    <button class="nav-mobile-lang-btn" data-lang="hi">🇮🇳 HI</button>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════
      HERO
@@ -2384,6 +2534,62 @@ footer {
 </footer>
 
 <script>
+/* ── Hamburger / mobile nav ─────────────────────────── */
+(function() {
+  var hamburger = document.getElementById('nav-hamburger');
+  var drawer    = document.getElementById('nav-mobile');
+  if (!hamburger || !drawer) return;
+
+  function openMenu() {
+    hamburger.classList.add('open');
+    drawer.classList.add('open');
+    hamburger.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden'; // prevent scroll behind drawer
+  }
+
+  function closeMenu() {
+    hamburger.classList.remove('open');
+    drawer.classList.remove('open');
+    hamburger.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  hamburger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    hamburger.classList.contains('open') ? closeMenu() : openMenu();
+  });
+
+  // Close on nav link click
+  drawer.querySelectorAll('a').forEach(function(a) {
+    a.addEventListener('click', closeMenu);
+  });
+
+  // Close on outside click
+  document.addEventListener('click', function(e) {
+    if (drawer.classList.contains('open') && !drawer.contains(e.target) && !hamburger.contains(e.target)) {
+      closeMenu();
+    }
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeMenu();
+  });
+
+  // Mobile lang buttons in drawer
+  document.querySelectorAll('.nav-mobile-lang-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var code = btn.getAttribute('data-lang');
+      if (window.applyMercuryLang) window.applyMercuryLang(code);
+      // Update active state on mobile btns
+      document.querySelectorAll('.nav-mobile-lang-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-lang') === code);
+      });
+      closeMenu();
+    });
+  });
+})();
+
 /* ── Theme toggle (cookie-based persistence) ──────── */
 (function() {
   var html   = document.documentElement;
@@ -2608,9 +2814,27 @@ document.querySelectorAll('.copy-btn').forEach(function(btn) {
   // The original counter JS fires on load; we patch it after i18n loads
   var _origCounter = window._liveCounterInterval;
 
+  /* ── Expose globally so mobile drawer can call it ── */
+  window.applyMercuryLang = applyLang;
+
   /* ── Init ── */
   var initialLang = detectLang();
   applyLang(initialLang);
+
+  /* ── Sync mobile lang button active states on init ── */
+  function syncMobileLangBtns(code) {
+    document.querySelectorAll('.nav-mobile-lang-btn').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-lang') === code);
+    });
+  }
+  syncMobileLangBtns(initialLang);
+
+  /* ── Patch applyLang to also sync mobile btns ── */
+  var _origApply = applyLang;
+  window.applyMercuryLang = function(code) {
+    _origApply(code);
+    syncMobileLangBtns(code);
+  };
 
 })();
 </script>
