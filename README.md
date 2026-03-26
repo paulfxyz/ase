@@ -2173,6 +2173,44 @@ Open a GitHub issue with:
 
 Full history with technical change notes.
 
+### v5.3.0 — 2026-03-26 — Tooltip bugfix: all 100 domains
+
+**Root cause:** `TOOLTIPS` object only had entries for ranks 1–50. Ranks 51–100 (baidu.com, qq.com, samsung.com … cloudinary.com) had no entries, so NS / MX / DMARC / SPF hover tooltips returned empty for half the BUILTIN list.
+
+**Changes:**
+- 50 new static `TOOLTIPS` entries added — complete coverage for all 100 BUILTIN domains
+- `tooltipHTML()` now falls back to live `domainState` raw DNS records for custom-added domains
+- Author avatar fixed on landing page (white border ring)
+- Footer duplicate "MIT License" removed — now reads "Made by Paul Fleury with ❤️ + AI"
+- All version strings bumped to 5.3.0 across README, landing page, i18n (11 languages)
+
+### v5.2.0 — 2026-03-26 — Production Deployment: mercury.sh + demo.mercury.sh
+
+**First live deployment** to SiteGround hosting.
+
+**Changes:**
+- `landing.html` deployed as `index.html` to `mercury.sh/public_html/`
+- Full app stack deployed to `demo.mercury.sh/public_html/`
+- `demo.mercury.sh`: PIN gate bypassed — dashboard loads directly for public demo
+- Space Grotesk logotype: `mercury` + `.sh` (smaller, bold italic, dropped baseline)
+- Inline SVG favicon + Apple Touch Icon + PWA meta tags added to landing page
+- "Perplexity Computer" branding removed across all files — replaced with "Made with ❤️ + AI"
+- INSTALL.md: Two-Domain Deployment section documenting FTP structure
+- CHANGELOG, README, INSTALL fully elaborated
+
+### v5.1.0 — 2026-03-25 — Internationalization: 11 Languages
+
+**Zero-dependency i18n engine.** No framework, no JSON files — a single `i18n.js` module and `data-i18n` attribute convention.
+
+**Changes:**
+- `i18n.js` — 1,100-line translation file, 11 languages × ~70 keys each
+- Languages: English · Français · Deutsch · Español · Português · Italiano · Türkçe · Русский · 中文 · 日本語 · हिंदी
+- Language picker in navbar: flag + code badge, smooth dropdown, keyboard accessible
+- `data-i18n` / `data-i18n-html` attributes on all 92 translatable text nodes
+- Browser language auto-detection via `navigator.languages`
+- Cookie persistence (`mercury-lang`, 1-year expiry)
+- `<html lang="...">` updates on switch
+
 ### v5.0.0 — 2026-03-25 — Mercury: Full Brand Launch
 
 **The All Seeing Eye → Mercury.** Repository renamed from `the-all-seeing-eye` to `mercury-sh`.
