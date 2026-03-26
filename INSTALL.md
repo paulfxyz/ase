@@ -32,6 +32,52 @@ Runs entirely in the browser — no framework, no build step, no database.
 > and that directory listing / MIME types are configured correctly.
 ---
 
+## Two-Domain Deployment (mercury.sh Official Setup)
+
+This is the production setup for [mercury.sh](https://mercury.sh) and [demo.mercury.sh](https://demo.mercury.sh). Two separate FTP document roots under one SiteGround account.
+
+### Domain layout
+
+| Domain | Purpose | Files |
+|---|---|---|
+| `mercury.sh` | Marketing landing page | `index.html` (from `landing.html`) + `i18n.js` |
+| `demo.mercury.sh` | Live app demo | Full stack: HTML + JS + CSS + PHP files |
+
+### FTP structure
+
+```
+/ (FTP root)
+├── mercury.sh/
+│   └── public_html/
+│       ├── index.html      ← landing page (landing.html renamed)
+│       └── i18n.js         ← 11-language translation module
+│
+└── demo.mercury.sh/
+    └── public_html/
+        ├── index.html
+        ├── app.js
+        ├── app.css
+        ├── config-write.php
+        ├── uptime-write.php
+        ├── notify.php
+        ├── ssl-check.php
+        ├── update-stats.php
+        ├── domains.list
+        ├── domains.stats
+        ├── webhook.do
+        └── .htaccess
+```
+
+### Notes
+
+- The `landing.html` file in this repo is deployed **as** `index.html` on the `mercury.sh` root — it is the marketing homepage, not the app.
+- The `index.html` in this repo (the app shell) goes to `demo.mercury.sh/public_html/` unchanged.
+- `i18n.js` must be co-located with the landing page — it is loaded via a relative `<script src="./i18n.js">` in `landing.html`.
+- `.htaccess` only applies to the demo subdomain — the landing page doesn't need it.
+- No `chmod` needed on SiteGround — PHP scripts run as your user and can write files with default 644 permissions.
+
+---
+
 ## Step 1 — Upload the files
 
 Upload these files to a directory on your hosting. All three must be in the **same folder**:

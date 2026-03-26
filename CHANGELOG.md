@@ -11,6 +11,72 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🚀 [5.2.0] — 2026-03-26
+
+### Production Deployment — Live on mercury.sh & demo.mercury.sh
+
+---
+
+#### What changed
+
+This release marks the first production deployment of Mercury to the live SiteGround hosting environment at `mercury.sh` and `demo.mercury.sh`. Both subdomains are now live:
+
+- **[mercury.sh](https://mercury.sh)** — The marketing landing page, served from `landing.html` (deployed as `index.html` to the `mercury.sh/public_html/` FTP directory). 11-language i18n, full SEO meta suite, animated demo preview, live stats band, full feature breakdown.
+- **[demo.mercury.sh](https://demo.mercury.sh)** — The live app, served from `index.html` + `app.js` + `app.css` + PHP backends. Pre-loaded with representative demo domains. PIN-protected. No setup required to explore.
+
+#### Infrastructure setup
+
+- SiteGround shared hosting, FTP access at `gnldm1107.siteground.biz:21`
+- Two separate document roots managed under the same FTP account:
+  - `mercury.sh/public_html/` → landing page only
+  - `demo.mercury.sh/public_html/` → full application stack
+- Apache `.htaccess` handles no-cache headers, `webhook.do` routing, and file protection
+- PHP 7.4+ required on demo subdomain for `config-write.php`, `uptime-write.php`, `notify.php`, `ssl-check.php`, `update-stats.php`
+
+#### File layout (both environments)
+
+```
+mercury.sh/public_html/
+├── index.html          ← landing page (from landing.html)
+└── i18n.js             ← translation file, 11 languages
+
+demo.mercury.sh/public_html/
+├── index.html          ← Mercury app shell
+├── app.js              ← all app logic (~82 KB)
+├── app.css             ← all styles (~41 KB)
+├── config-write.php    ← PIN / theme / notification config persistence
+├── uptime-write.php    ← cross-device uptime history
+├── notify.php          ← Resend email API + AES-256-GCM key encryption
+├── ssl-check.php       ← server-side TLS cert check (PHP curl)
+├── update-stats.php    ← cron-triggered SSL cert checker, writes domains.json
+├── domains.list        ← watchlist (one domain per line)
+├── domains.stats       ← CSV snapshot (auto-updated)
+├── webhook.do          ← headless cron trigger endpoint
+└── .htaccess           ← Apache config: cache headers + routing + file protection
+```
+
+### ✨ Added
+
+- GitHub repository `paulfxyz/mercury-sh` now fully matches live deployment
+- README updated with live demo link badge and correct deployment instructions
+- INSTALL.md clarified: `index.html` on FTP root is the **app**, not the landing page
+- CHANGELOG.md (this file) updated with every version from v1.0.0 through v5.2.0
+- `domains.list` seeded with representative public domains for the demo instance
+
+### 🔄 Changed
+
+- `landing.html` deployed as `index.html` to `mercury.sh/public_html/` (landing domain root)
+- GitHub repo README badge updated to `Version-5.2.0`
+- Author URL corrected: [paulf.xyz](https://paulf.xyz) → [paul.fleury.xyz](https://paul.fleury.xyz) references cleaned
+
+### 🔧 Fixed
+
+- `i18n.js` now co-deployed alongside `landing.html` on the `mercury.sh` root — previously missing from FTP
+- `.htaccess` `webhook.do` rewrite rule tested and confirmed working on SiteGround Apache
+- File permissions set correctly: PHP scripts executable, data files protected from direct access
+
+---
+
 ## 🔖 [5.1.0] — 2026-03-25
 
 ### 🌍 Internationalization (i18n) — 11 Languages · Language Picker UI
