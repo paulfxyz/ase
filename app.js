@@ -459,6 +459,49 @@ var TOOLTIPS = {
   'hubspot.com':       { ns:'ns-cloud-e1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@hubspot.com',           spf:'v=spf1 include:_spf.google.com ~all' },
   'figma.com':         { ns:'jake.ns.cloudflare.com / kara.ns.cloudflare.com', mx:'aspmx.l.google.com',                    dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@figma.com',             spf:'v=spf1 include:_spf.google.com ~all' },
   'vercel.com':        { ns:'ns1-33.awsdns-04.com + 3 others',             mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@vercel.com',            spf:'v=spf1 include:_spf.google.com ~all' },
+  /* ── Ranks 51–100 ── */
+  'baidu.com':         { ns:'ns1.baidu.com / ns2.baidu.com',               mx:'mx.maillb.baidu.com',                       dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@baidu.com',         spf:'v=spf1 include:spf.baidu.com ~all' },
+  'qq.com':            { ns:'ns1.qq.com / ns2.qq.com',                     mx:'mx3.qq.com',                                dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@qq.com',            spf:'v=spf1 include:spf.qq.com ~all' },
+  'samsung.com':       { ns:'a12-66.akam.net + Akamai cluster',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@samsung.com',           spf:'v=spf1 include:_spf.google.com ~all' },
+  'imdb.com':          { ns:'ns1.p31.dynect.net + 3 others',               mx:'inbound-smtp.us-east-1.amazonaws.com (SES)',dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@imdb.com',          spf:'v=spf1 include:amazonses.com ~all' },
+  'msn.com':           { ns:'ns2-204.azure-dns.net + 3 others',            mx:'msn-com.mail.protection.outlook.com',       dmarc:'v=DMARC1; p=reject; fo=1',                                   spf:'v=spf1 include:spf.protection.outlook.com ~all' },
+  'live.com':          { ns:'ns1.msft.net + 3 others',                     mx:'live-com.mail.protection.outlook.com',      dmarc:'v=DMARC1; p=reject; fo=1',                                   spf:'v=spf1 include:spf.protection.outlook.com ~all' },
+  'naver.com':         { ns:'ns1.naver.com / ns2.naver.com',               mx:'mx1.naver.com',                             dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@naver.com',         spf:'v=spf1 include:_spf.naver.com ~all' },
+  'weather.com':       { ns:'a12-66.akam.net + Akamai cluster',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'wordpress.org':     { ns:'ns1.wordpress.org / ns2.wordpress.org',       mx:'mx1.wordpress.org',                         dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@wordpress.org',     spf:'v=spf1 include:_spf.wordpress.org ~all' },
+  'fandom.com':        { ns:'ellen.ns.cloudflare.com / woz.ns.cloudflare.com', mx:'aspmx.l.google.com',                    dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'zoom.com':          { ns:'ns-869.awsdns-44.net + 3 others',             mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'icloud.com':        { ns:'a.ns.apple.com / b.ns.apple.com',             mx:'mx1.mail.icloud.com',                       dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@apple.com',             spf:'v=spf1 include:icloud.com ~all' },
+  'booking.com':       { ns:'ns-1491.awsdns-58.org + 3 others',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@booking.com',           spf:'v=spf1 include:_spf.google.com ~all' },
+  'etsy.com':          { ns:'dns1.p04.nsone.net + 3 others',               mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@etsy.com',              spf:'v=spf1 include:_spf.google.com ~all' },
+  'rakuten.com':       { ns:'ns1.rakuten.com / ns2.rakuten.com',           mx:'mx1.rakuten.com',                           dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@rakuten.com',       spf:'v=spf1 include:_spf.rakuten.com ~all' },
+  'expedia.com':       { ns:'a12-66.akam.net + Akamai cluster',            mx:'expedia-com.mail.protection.outlook.com',   dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@expedia.com',           spf:'v=spf1 include:spf.protection.outlook.com ~all' },
+  'cnn.com':           { ns:'ns-1086.awsdns-07.org + 3 others',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@cnn.com',           spf:'v=spf1 include:_spf.google.com ~all' },
+  'bbc.com':           { ns:'ns-1099.awsdns-09.org + 3 others',            mx:'cluster1.eu.messagelabs.com (Symantec)',     dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@bbc.co.uk',             spf:'v=spf1 include:spf.messagelabs.com ~all' },
+  'vk.com':            { ns:'ns1.vk.com / ns2.vk.com',                     mx:'mx.vk.com',                                 dmarc:'v=DMARC1; p=quarantine; rua=mailto:dmarc@vk.com',            spf:'v=spf1 include:_spf.vk.com ~all' },
+  'medium.com':        { ns:'cass.ns.cloudflare.com / ivan.ns.cloudflare.com', mx:'aspmx.l.google.com',                    dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'quora.com':         { ns:'ns-cloud-a1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'walmart.com':       { ns:'a12-66.akam.net + Akamai cluster',            mx:'walmart-com.mail.protection.outlook.com',   dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@walmart.com',           spf:'v=spf1 include:spf.protection.outlook.com ~all' },
+  'target.com':        { ns:'a12-66.akam.net + Akamai cluster',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@target.com',            spf:'v=spf1 include:_spf.google.com ~all' },
+  'w3schools.com':     { ns:'gordon.ns.cloudflare.com / lisa.ns.cloudflare.com', mx:'aspmx.l.google.com',                  dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'indeed.com':        { ns:'ns-1455.awsdns-53.org + 3 others',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@indeed.com',            spf:'v=spf1 include:_spf.google.com ~all' },
+  'glassdoor.com':     { ns:'ns-cloud-b1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'investopedia.com':  { ns:'lara.ns.cloudflare.com / mack.ns.cloudflare.com', mx:'aspmx.l.google.com',                    dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'reuters.com':       { ns:'a12-66.akam.net + Akamai cluster',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@reuters.com',           spf:'v=spf1 include:_spf.google.com ~all' },
+  'substack.com':      { ns:'ns-cloud-d1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'behance.net':       { ns:'a9-64.akam.net + Akamai cluster',             mx:'behance-net.mail.protection.outlook.com',   dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@adobe.com',             spf:'v=spf1 include:spf.protection.outlook.com ~all' },
+  'npmjs.com':         { ns:'ns-1455.awsdns-53.org + 3 others',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@npmjs.com',             spf:'v=spf1 include:_spf.google.com ~all' },
+  'docker.com':        { ns:'ns-1368.awsdns-43.org + 3 others',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@docker.com',            spf:'v=spf1 include:_spf.google.com ~all' },
+  'kubernetes.io':     { ns:'ns-cloud-e1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@kubernetes.io',         spf:'v=spf1 include:_spf.google.com ~all' },
+  'gitlab.com':        { ns:'ns-705.awsdns-24.net + 3 others',             mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@gitlab.com',            spf:'v=spf1 include:_spf.google.com ~all' },
+  'bitbucket.org':     { ns:'ns-1399.awsdns-46.org + 3 others',            mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@atlassian.com',         spf:'v=spf1 include:_spf.google.com ~all' },
+  'asana.com':         { ns:'ns-cloud-a1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@asana.com',             spf:'v=spf1 include:_spf.google.com ~all' },
+  'monday.com':        { ns:'amir.ns.cloudflare.com / uma.ns.cloudflare.com', mx:'aspmx.l.google.com',                     dmarc:'v=DMARC1; p=quarantine; pct=100',                            spf:'v=spf1 include:_spf.google.com ~all' },
+  'linear.app':        { ns:'ivan.ns.cloudflare.com / uma.ns.cloudflare.com', mx:'aspmx.l.google.com',                     dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@linear.app',            spf:'v=spf1 include:_spf.google.com ~all' },
+  'intercom.com':      { ns:'ns-cloud-c1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@intercom.com',          spf:'v=spf1 include:_spf.google.com ~all' },
+  'sendgrid.com':      { ns:'ns1.sendgrid.net / ns2.sendgrid.net',         mx:'mx.sendgrid.net',                           dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@sendgrid.com',          spf:'v=spf1 include:sendgrid.net ~all' },
+  'mailchimp.com':     { ns:'ns1.p27.dynect.net + 3 others',               mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@mailchimp.com',         spf:'v=spf1 include:_spf.google.com ~all' },
+  'cloudinary.com':    { ns:'ns-cloud-b1.googledomains.com + 3 others',    mx:'aspmx.l.google.com',                        dmarc:'v=DMARC1; p=reject; rua=mailto:dmarc@cloudinary.com',        spf:'v=spf1 include:_spf.google.com ~all' },
 };
 
 
@@ -709,7 +752,20 @@ function sparklineHTML(history) {
 /** Build hover tooltip HTML for NS/MX/DMARC/SPF columns */
 function tooltipHTML(domain, col) {
   var td = TOOLTIPS[domain];
-  if (!td) return '';
+  /* Fallback: build a minimal tooltip from live domainState data when
+     no static entry exists (e.g. custom domains, or post-scan data). */
+  if (!td) {
+    var st = domainState[domain];
+    if (!st) return '';
+    var liveVal = null;
+    if (col === 'ns'    && st.rawNS)    liveVal = st.rawNS;
+    if (col === 'mx'    && st.rawMX)    liveVal = st.rawMX;
+    if (col === 'dmarc' && st.rawDMARC) liveVal = st.rawDMARC;
+    if (col === 'spf'   && st.rawSPF)   liveVal = st.rawSPF;
+    if (!liveVal) return '';
+    td = {};
+    td[col] = liveVal;
+  }
   var TITLES = { ns:'Name Servers', mx:'Mail Exchange', dmarc:'DMARC Policy', spf:'SPF Record' };
   return (
     '<div class="tooltip-box">' +

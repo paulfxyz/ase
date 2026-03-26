@@ -11,6 +11,36 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 🐛 [5.3.0] — 2026-03-26
+
+### Bugfix — Tooltips missing for ranks 51–100
+
+---
+
+#### Root cause
+
+The `TOOLTIPS` object contained static NS / MX / DMARC / SPF detail entries for **ranks 1–50 only**. Ranks 51–100 (baidu.com, qq.com, samsung.com … cloudinary.com) had no entries, so `tooltipHTML()` returned an empty string for every hover on those rows — no tooltip appeared at all.
+
+The `tooltipHTML()` function had an early return on `if (!td) return ''` with no fallback, so even after a live DNS scan populated `domainState` with raw records, the tooltip remained blank for any domain missing from the static map.
+
+#### Fix
+
+1. **50 new static TOOLTIP entries added** — every BUILTIN domain (ranks 51–100) now has a complete `{ ns, mx, dmarc, spf }` entry with accurate seeded data matching the same format and quality as ranks 1–50.
+
+2. **`tooltipHTML()` live-data fallback** — when no static entry exists (custom domains added via `+ Add Domain`), the function now falls back to `domainState[domain].rawNS / rawMX / rawDMARC / rawSPF` populated by the live DoH scan. Previously, custom domains would never show tooltips even after a full check.
+
+### ✨ Added
+
+- `TOOLTIPS` entries for all 50 missing BUILTIN domains (ranks 51–100)
+- `tooltipHTML()` graceful fallback to live `domainState` raw DNS records
+
+### 🔧 Fixed
+
+- Tooltips (NS, MX, DMARC, SPF) now show on hover for **all 100 BUILTIN domains** including baidu.com, qq.com, samsung.com, naver.com, vk.com, bbc.com, and all others
+- Tooltips now also populate after a live scan for custom-added domains
+
+---
+
 ## 🚀 [5.2.0] — 2026-03-26
 
 ### Production Deployment — Live on mercury.sh & demo.mercury.sh

@@ -4,7 +4,7 @@
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES2020-yellow?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-5.2.0-blue?style=flat-square)](https://github.com/paulfxyz/mercury-sh/releases)
+[![Version](https://img.shields.io/badge/Version-5.3.0-blue?style=flat-square)](https://github.com/paulfxyz/mercury-sh/releases)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-purple?style=flat-square)](#setup--installation)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-success?style=flat-square)](#tech-stack-decisions)
 
