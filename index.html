@@ -63,16 +63,31 @@
 
     <!-- Eye SVG logo -->
     <div class="pin-eye" aria-hidden="true">
+      <!-- All-Seeing Eye / Illuminati pyramid -->
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Outer eye shape -->
-        <path d="M4 32C4 32 14 14 32 14C50 14 60 32 60 32C60 32 50 50 32 50C14 50 4 32 4 32Z"
-              stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Pyramid body -->
+        <polygon points="32,4 60,58 4,58"
+                 fill="currentColor" opacity="0.1"/>
+        <polygon points="32,4 60,58 4,58"
+                 stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+        <!-- Capstone gap -->
+        <line x1="18" y1="38" x2="46" y2="38" stroke="currentColor"
+              stroke-width="1.2" opacity="0.45" stroke-dasharray="3 2"/>
+        <!-- Eye whites -->
+        <ellipse cx="32" cy="27" rx="12" ry="8" fill="currentColor" opacity="0.15"/>
+        <ellipse cx="32" cy="27" rx="12" ry="8" stroke="currentColor" stroke-width="2" fill="none"/>
         <!-- Iris -->
-        <circle cx="32" cy="32" r="10" stroke="currentColor" stroke-width="3"/>
-        <!-- Pupil (filled) -->
-        <circle cx="32" cy="32" r="4.5" fill="currentColor"/>
-        <!-- Highlight -->
-        <circle cx="35" cy="28.5" r="2" fill="currentColor" opacity="0.4"/>
+        <circle cx="32" cy="27" r="5.5" fill="currentColor" opacity="0.6"/>
+        <!-- Pupil -->
+        <circle cx="32" cy="27" r="2.8" fill="currentColor"/>
+        <!-- Glint -->
+        <circle cx="30.5" cy="25.5" r="1.2" fill="white" opacity="0.7"/>
+        <!-- Rays -->
+        <line x1="32" y1="17" x2="32" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+        <line x1="40" y1="20" x2="43" y2="17" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="24" y1="20" x2="21" y2="17" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="44" y1="27" x2="48" y2="27" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="20" y1="27" x2="16" y2="27" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
       </svg>
     </div>
 
