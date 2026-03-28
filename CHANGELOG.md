@@ -1,13 +1,49 @@
 # 📝 Changelog
 
-All notable changes to **Mercury** (`mercury-sh`) are documented here.
+All notable changes to **ASE** (`ase`) are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > 🗓️ For full setup instructions, see the **[INSTALL.md](./INSTALL.md)**.
-> 👤 Made with ❤️ by [Paul Fleury](https://mercury.sh) — [@paulfxyz](https://github.com/paulfxyz)
+> 👤 Made with ❤️ by [Paul Fleury](https://ase.so) — [@paulfxyz](https://github.com/paulfxyz)
 
+
+---
+
+## 👁 [6.0.0] — 2026-03-28
+
+### Rebrand: Mercury → The All-Seeing-Eye (ASE)
+
+---
+
+#### Why the rename?
+
+Mercury.sh is being retired to make room for a new project. The domain monitor returns to its original name — **The All-Seeing-Eye** — the name it had before the Mercury rebrand in v5.0. This time it lives at `ase.so` (landing) and `ase.live` (live demo), with the GitHub repository renamed from `mercury-sh` to `ase`.
+
+#### What changed
+
+- **Domain:** `mercury.sh` → `ase.so` (landing page)
+- **Demo:** `demo.mercury.sh` → `ase.live`
+- **GitHub:** `paulfxyz/mercury-sh` → `paulfxyz/ase`
+- **App name:** Mercury / mercury.sh → ASE / The All-Seeing-Eye
+- **Cookie names:** `mercury-lang` → `ase-lang`, `mercury-theme` → `ase-theme`
+- **JS globals:** `window.MERCURY_I18N` → `window.ASE_I18N`, `applyMercuryLang` → `applyASELang`
+- **Console tags:** `[Mercury]` → `[ASE]`
+- **Export filenames:** `mercury-sh-YYYY-MM-DD.csv` → `ase-YYYY-MM-DD.csv`
+- **i18n:** All 11 languages updated — brand name, URLs, download buttons, footer copyright
+- **Version:** 5.4.0 → 6.0.0
+
+### ✨ Added
+
+- `ase.so` live — full landing page with ASE branding
+- `ase.live` live — full app demo with ASE branding, no PIN
+
+### 🔄 Changed
+
+- All `mercury`/`Mercury`/`mercury.sh`/`demo.mercury.sh` references replaced across all files
+- GitHub repo renamed: `paulfxyz/mercury-sh` → `paulfxyz/ase`
+- README, CHANGELOG, INSTALL, all PHP files, app.js, index.html, landing.html, i18n.js fully rebranded
 
 ---
 
@@ -23,7 +59,7 @@ Uptime data is now persistently recorded to `uptime.json` from **every source** 
 
 - Closing the browser tab no longer loses uptime history
 - Multiple devices and visitors all contribute to the same record
-- A free cron service (cron-job.org, UptimeRobot, GitHub Actions) calling `webhook.do` once per hour turns Mercury into a fully automated, always-recording uptime platform with zero infrastructure cost
+- A free cron service (cron-job.org, UptimeRobot, GitHub Actions) calling `webhook.do` once per hour turns ASE into a fully automated, always-recording uptime platform with zero infrastructure cost
 
 #### Architecture: how data flows into `uptime.json`
 
@@ -52,21 +88,21 @@ All four paths now write to `uptime.json`. Previously, `update-stats.php` (the P
 #### Landing page
 
 - New **“Automated Monitoring” section** added (between Alerts showcase and CTA)
-- 4-step visual flow: Schedule webhook → Mercury checks everything → Results saved to `uptime.json` → Email alerts
+- 4-step visual flow: Schedule webhook → ASE checks everything → Results saved to `uptime.json` → Email alerts
 - cron-job.org callout with free tier badge and example webhook URL
 - Section anchor: `#automation`
 
-#### cron-job.org (demo.mercury.sh)
+#### cron-job.org (demo.ase.so)
 
-- Job `7418641`: `https://demo.mercury.sh/webhook.do` — every hour (`0 * * * *`) — active
-- Job `7418643`: `https://demo.mercury.sh/update-stats.php` — every 6 hours (`0 */6 * * *`) — active
+- Job `7418641`: `https://demo.ase.so/webhook.do` — every hour (`0 * * * *`) — active
+- Job `7418643`: `https://demo.ase.so/update-stats.php` — every 6 hours (`0 */6 * * *`) — active
 
 ### ✨ Added
 
 - `update-stats.php` Step 5.5: merge cron check results into `uptime.json`
 - `app.js`: `uptimeSave()` + `saveDomainsStats()` called after webhook-mode `checkAll()`
 - Landing page: Automated Monitoring section with 4-step flow and cron-job.org callout
-- cron-job.org: 2 jobs created for `demo.mercury.sh` (hourly webhook + 6h PHP cron)
+- cron-job.org: 2 jobs created for `demo.ase.so` (hourly webhook + 6h PHP cron)
 
 ### 🔧 Fixed
 
@@ -107,35 +143,35 @@ The `tooltipHTML()` function had an early return on `if (!td) return ''` with no
 
 ## 🚀 [5.2.0] — 2026-03-26
 
-### Production Deployment — Live on mercury.sh & demo.mercury.sh
+### Production Deployment — Live on ase.so & demo.ase.so
 
 ---
 
 #### What changed
 
-This release marks the first production deployment of Mercury to the live SiteGround hosting environment at `mercury.sh` and `demo.mercury.sh`. Both subdomains are now live:
+This release marks the first production deployment of ASE to the live SiteGround hosting environment at `ase.so` and `demo.ase.so`. Both subdomains are now live:
 
-- **[mercury.sh](https://mercury.sh)** — The marketing landing page, served from `landing.html` (deployed as `index.html` to the `mercury.sh/public_html/` FTP directory). 11-language i18n, full SEO meta suite, animated demo preview, live stats band, full feature breakdown.
-- **[demo.mercury.sh](https://demo.mercury.sh)** — The live app, served from `index.html` + `app.js` + `app.css` + PHP backends. Pre-loaded with representative demo domains. PIN-protected. No setup required to explore.
+- **[ase.so](https://ase.so)** — The marketing landing page, served from `landing.html` (deployed as `index.html` to the `ase.so/public_html/` FTP directory). 11-language i18n, full SEO meta suite, animated demo preview, live stats band, full feature breakdown.
+- **[demo.ase.so](https://demo.ase.so)** — The live app, served from `index.html` + `app.js` + `app.css` + PHP backends. Pre-loaded with representative demo domains. PIN-protected. No setup required to explore.
 
 #### Infrastructure setup
 
 - SiteGround shared hosting, FTP access at `gnldm1107.siteground.biz:21`
 - Two separate document roots managed under the same FTP account:
-  - `mercury.sh/public_html/` → landing page only
-  - `demo.mercury.sh/public_html/` → full application stack
+  - `ase.so/public_html/` → landing page only
+  - `demo.ase.so/public_html/` → full application stack
 - Apache `.htaccess` handles no-cache headers, `webhook.do` routing, and file protection
 - PHP 7.4+ required on demo subdomain for `config-write.php`, `uptime-write.php`, `notify.php`, `ssl-check.php`, `update-stats.php`
 
 #### File layout (both environments)
 
 ```
-mercury.sh/public_html/
+ase.so/public_html/
 ├── index.html          ← landing page (from landing.html)
 └── i18n.js             ← translation file, 11 languages
 
-demo.mercury.sh/public_html/
-├── index.html          ← Mercury app shell
+demo.ase.so/public_html/
+├── index.html          ← ASE app shell
 ├── app.js              ← all app logic (~82 KB)
 ├── app.css             ← all styles (~41 KB)
 ├── config-write.php    ← PIN / theme / notification config persistence
@@ -151,7 +187,7 @@ demo.mercury.sh/public_html/
 
 ### ✨ Added
 
-- GitHub repository `paulfxyz/mercury-sh` now fully matches live deployment
+- GitHub repository `paulfxyz/ase` now fully matches live deployment
 - README updated with live demo link badge and correct deployment instructions
 - INSTALL.md clarified: `index.html` on FTP root is the **app**, not the landing page
 - CHANGELOG.md (this file) updated with every version from v1.0.0 through v5.2.0
@@ -159,13 +195,13 @@ demo.mercury.sh/public_html/
 
 ### 🔄 Changed
 
-- `landing.html` deployed as `index.html` to `mercury.sh/public_html/` (landing domain root)
+- `landing.html` deployed as `index.html` to `ase.so/public_html/` (landing domain root)
 - GitHub repo README badge updated to `Version-5.2.0`
 - Author URL corrected: [paulf.xyz](https://paulf.xyz) → [paul.fleury.xyz](https://paul.fleury.xyz) references cleaned
 
 ### 🔧 Fixed
 
-- `i18n.js` now co-deployed alongside `landing.html` on the `mercury.sh` root — previously missing from FTP
+- `i18n.js` now co-deployed alongside `landing.html` on the `ase.so` root — previously missing from FTP
 - `.htaccess` `webhook.do` rewrite rule tested and confirmed working on SiteGround Apache
 - File permissions set correctly: PHP scripts executable, data files protected from direct access
 
@@ -208,7 +244,7 @@ Some translatable elements contain `<code>`, `<strong>`, or `<em>` tags inside t
 **Challenge 3 — Language detection priority**
 
 Correct order of precedence:
-1. `mercury-lang` cookie (explicit user preference — highest priority)
+1. `ase-lang` cookie (explicit user preference — highest priority)
 2. `navigator.languages` array (browser's preferred list)
 3. `navigator.language` fallback
 4. `'en'` hardcoded fallback
@@ -232,7 +268,7 @@ The dropdown uses CSS transforms (`translateY` + `scale(0.97)`) for the open/clo
   - Mobile: hides text label, keeps flag + chevron
 - `data-i18n="key"` attributes on all translatable text nodes (92 total)
 - `data-i18n-html="key"` for elements with inner HTML markup
-- Cookie persistence: `mercury-lang` cookie (1-year expiry, `SameSite=Lax`)
+- Cookie persistence: `ase-lang` cookie (1-year expiry, `SameSite=Lax`)
 - Auto-detect: browser `navigator.languages` used on first visit
 - `<html lang="...">` attribute updates on language switch (e.g., `zh-Hans`, `ja`)
 
@@ -243,7 +279,7 @@ The dropdown uses CSS transforms (`translateY` + `scale(0.97)`) for the open/clo
   - CTA urgency text updated to include full subtitle from i18n key
   - Footer year updated: 2025 → 2026, copyright clarified "MIT License"
   - No AI tool branding anywhere on the public-facing page
-- Nav: language picker sits after GitHub button, uses Mercury design system tokens
+- Nav: language picker sits after GitHub button, uses ASE design system tokens
 
 ### 🔧 Fixed
 
@@ -256,18 +292,18 @@ The dropdown uses CSS transforms (`translateY` + `scale(0.97)`) for the open/clo
 
 ## 🔖 [5.0.0] — 2026-03-25
 
-### 🌍 Mercury — Full Brand Relaunch
+### 🌍 ASE — Full Brand Relaunch
 
 ---
 
-#### The All Seeing Eye → Mercury
+#### The All Seeing Eye → Mercury → ASE
 
-Version 5.0.0 marks the complete brand transformation from **The All Seeing Eye** to **Mercury — Domain Guardian**.
+Version 5.0.0 marks the complete brand transformation from **The All Seeing Eye** to **Mercury** (v5.0) to **ASE — Domain Guardian** (v6.0).
 
-- Repository renamed from `the-all-seeing-eye` → `mercury-sh`
+- Repository renamed from `the-all-seeing-eye` → `ase`
 - All references to personal domains removed throughout codebase and docs
-- New landing page at [mercury.sh](https://mercury.sh) with Mercury brand identity
-- Public demo at [demo.mercury.sh](https://demo.mercury.sh) with top-100 world domains
+- New landing page at [ase.so](https://ase.so) with ASE brand identity
+- Public demo at [demo.ase.so](https://demo.ase.so) with top-100 world domains
 - BUILTIN domain list expanded from 50 → 100 world's most-visited domains
 
 #### BUILTIN domains: 50 → 100
@@ -278,19 +314,19 @@ Version 5.0.0 marks the complete brand transformation from **The All Seeing Eye*
 
 ### ✨ Added
 
-- `mercury-sh` repo (renamed from `the-all-seeing-eye`)
-- [mercury.sh](https://mercury.sh) — brand landing page
-- [demo.mercury.sh](https://demo.mercury.sh) — public live demo
+- `ase` repo (renamed from `the-all-seeing-eye`)
+- [ase.so](https://ase.so) — brand landing page
+- [demo.ase.so](https://demo.ase.so) — public live demo
 - BUILTIN ranks 51–100 with full NS/MX/DMARC/SPF data
 - 50 new TOOLTIPS entries for new domains
 
 ### 🔄 Changed
 
-- All `The All Seeing Eye` → `Mercury` throughout codebase
-- All `all-seeing-eye` → `mercury-sh` in URLs, file references, comments
+- All `The All Seeing Eye` → `Mercury` → `ASE` throughout codebase
+- All `all-seeing-eye` → `ase` in URLs, file references, comments
 - All personal domain references removed
 - `domains.list` → top-100 world domains
-- README, CHANGELOG, INSTALL rewritten with Mercury brand
+- README, CHANGELOG, INSTALL rewritten with ASE brand
 
 ---
 
@@ -1055,13 +1091,13 @@ Each new domain has full TOOLTIP_DATA entries (NS, MX, DMARC, SPF details for ho
 - **Issue:** Two links in `index.html` still used the `your-org` placeholder URL (`https://github.com/your-org/...`) left over from the open-source scaffold:
   - Footer `GitHub ↗` link (line ~350)
   - Help/info modal `⭐ View on GitHub` button (line ~441)
-- **Fix:** Both replaced with `https://github.com/paulfxyz/mercury-sh`
+- **Fix:** Both replaced with `https://github.com/paulfxyz/ase`
 - The More ⋮ dropdown GitHub link was already correct since v2.0.0.
 
 ### 🐛 Fixed
 
-- `index.html` — footer GitHub link: `your-org/all-seeing-eye` → `paulfxyz/mercury-sh`
-- `index.html` — help modal GitHub link: `your-org/mercury-sh` → `paulfxyz/mercury-sh`
+- `index.html` — footer GitHub link: `your-org/all-seeing-eye` → `paulfxyz/ase`
+- `index.html` — help modal GitHub link: `your-org/ase` → `paulfxyz/ase`
 
 ---
 
@@ -1394,7 +1430,7 @@ Theme toggle changes now call `saveConfig({ theme: 'light'|'dark' })` — so the
 
 #### PIN Flow Fix — No More Forced Onboarding on Every Visit
 
-- **The problem:** An IIFE added in v1.5.0 checked `PIN_HASH === DEFAULT_PIN_HASH` on page load and immediately replaced the login overlay with the set-PIN modal. This meant every incognito visit triggered the set-PIN onboarding — making the site appear broken on the live `demo.mercury.sh` because users were met with a setup flow instead of a login screen.
+- **The problem:** An IIFE added in v1.5.0 checked `PIN_HASH === DEFAULT_PIN_HASH` on page load and immediately replaced the login overlay with the set-PIN modal. This meant every incognito visit triggered the set-PIN onboarding — making the site appear broken on the live `demo.ase.so` because users were met with a setup flow instead of a login screen.
 - **The fix:** The IIFE is removed. The login PIN overlay now shows normally for all visitors. After a successful login, `checkFirstUse()` runs and — only if the default PIN was used — prompts to set a new PIN. A visitor who just wants to use the dashboard with the default PIN types `123456` and is in.
 
 #### Standalone Build Removed
@@ -1485,7 +1521,7 @@ Theme toggle changes now call `saveConfig({ theme: 'light'|'dark' })` — so the
 
 #### Standalone Single-File Build (`index.standalone.html`)
 
-- **The problem:** `demo.mercury.sh` was running the old monolithic `index.html` without `app.css`/`app.js`. Uploading just `index.html` after the v1.3.0 split would break the site.
+- **The problem:** `demo.ase.so` was running the old monolithic `index.html` without `app.css`/`app.js`. Uploading just `index.html` after the v1.3.0 split would break the site.
 - **The fix:** `index.standalone.html` — a self-contained single-file build that inlines `app.css` and `app.js` directly. Upload this one file and the site works with zero dependencies (besides Google Fonts CDN).
 - **Both options available:**
   - `index.standalone.html` → single-file deploy, drop on any server
@@ -1632,7 +1668,7 @@ Theme toggle changes now call `saveConfig({ theme: 'light'|'dark' })` — so the
 - **The fix:** A two-step detection algorithm replaces the flat `Own` fallback:
   1. **Named providers first** — AWS, Azure, Google, NS1, Akamai, Wikimedia, ClouDNS, DNSimple, and now **SiteGround** all have explicit pattern matches.
   2. **Apex domain comparison** — extract the last two DNS labels from each NS hostname and compare to the monitored domain's own apex. If all NS hostnames share their apex with the domain (e.g. `cloudflare.com` → `ns3.cloudflare.com`), label it **`Domain`** — meaning the domain operates its own nameserver infrastructure.
-  3. **NS-in-domain check** — if an NS hostname contains the monitored domain's apex as a substring, extract and capitalise the domain name as the label (e.g. `ns1.mercury.sh` would label as `Paulfleury`).
+  3. **NS-in-domain check** — if an NS hostname contains the monitored domain's apex as a substring, extract and capitalise the domain name as the label (e.g. `ns1.ase.so` would label as `Paulfleury`).
   4. **`Own` fallback** — only for genuinely unknown third-party registrar NS that don't match any of the above.
 - **`detectNSProvider(nsRecords, domain)`** — the function now takes a second `domain` argument for the self-NS comparison. All call sites updated.
 - **Two new helper functions added:**
@@ -1710,6 +1746,6 @@ Theme toggle changes now call `saveConfig({ theme: 'light'|'dark' })` — so the
 
 <div align="center">
 
-🗓️ Back to **[README.md](./README.md)** • 🐛 Report issues at **[GitHub Issues](https://github.com/paulfxyz/mercury-sh/issues)** • ⭐ Star if it helped!
+🗓️ Back to **[README.md](./README.md)** • 🐛 Report issues at **[GitHub Issues](https://github.com/paulfxyz/ase/issues)** • ⭐ Star if it helped!
 
 </div>

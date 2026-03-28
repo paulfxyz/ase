@@ -1,7 +1,7 @@
 <?php
 /**
  * ╔══════════════════════════════════════════════════════════════╗
- * ║  THE ALL SEEING EYE — update-stats.php                       ║
+ * ║  THE ALL-SEEING-EYE (ASE) — update-stats.php                       ║
  * ║                                                              ║
  * ║  PURPOSE                                                     ║
  * ║  ────────────────────────────────────────────────────────    ║
@@ -53,7 +53,7 @@ define('MAX_DOMAINS',   200);   // safety cap — prevents runaway cron
 define('NOTIFY_PHP',    __DIR__ . '/notify.php');   // email notification endpoint
 define('CONFIG_FILE',   __DIR__ . '/ase_config.json'); // settings (for notification check)
 define('NOTIFY_SENT',   __DIR__ . '/cron_notify_sent.json'); // deduplication tracker
-define('VERSION',       '5.4.0');
+define('VERSION', '6.0.0');
 define('UPTIME_FILE',   __DIR__ . '/uptime.json');  // persistent uptime history
 
 // ── Cron token + IP bypass ────────────────────────────────────────
@@ -107,7 +107,7 @@ function csv_escape(string $value): string {
     return $value;
 }
 
-log_line("👁  The All Seeing Eye — update-stats.php v" . VERSION);
+log_line("👁  The All-Seeing-Eye (ASE) — update-stats.php v" . VERSION);
 log_line("   Started: $timestamp");
 log_line(str_repeat('─', 60));
 

@@ -1,31 +1,31 @@
-# ⚡ Mercury — Domain Guardian
+# ⚡ ASE — The All-Seeing-Eye · Domain Guardian
 
 [![HTML](https://img.shields.io/badge/HTML-5-orange?style=flat-square&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES2020-yellow?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-5.4.0-blue?style=flat-square)](https://github.com/paulfxyz/mercury-sh/releases)
+[![Version](https://img.shields.io/badge/Version-6.0.0-blue?style=flat-square)](https://github.com/paulfxyz/ase/releases)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-purple?style=flat-square)](#setup--installation)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-success?style=flat-square)](#tech-stack-decisions)
 
 **Self-hosted uptime, DNS, SSL and email alert monitor. One HTML file. Zero dependencies. Zero build step.**
 
-*Mercury, the Winged Messenger God — watching over your domains, flawlessly, serverlessly.*
+*The All-Seeing-Eye (ASE) — watching over your domains, flawlessly, serverlessly.*
 
 ---
 
-**[🔴 Live Demo](https://demo.mercury.sh)** &nbsp;·&nbsp; **[🌐 mercury.sh](https://mercury.sh)** &nbsp;·&nbsp; **[📦 GitHub Releases](https://github.com/paulfxyz/mercury-sh/releases)** &nbsp;·&nbsp; **[⭐ Star on GitHub](https://github.com/paulfxyz/mercury-sh)**
+**[🔴 Live Demo](https://demo.ase.so)** &nbsp;·&nbsp; **[🌐 ase.so](https://ase.so)** &nbsp;·&nbsp; **[📦 GitHub Releases](https://github.com/paulfxyz/ase/releases)** &nbsp;·&nbsp; **[⭐ Star on GitHub](https://github.com/paulfxyz/ase)**
 
 ---
 
-> This README is a deeply technical reference — it covers not just *how* to use Mercury but *why* every architectural decision was made, every bug that was hit, and every lesson learned building it. If you're evaluating Mercury for your own infrastructure or want to understand how a production-grade monitoring dashboard can be built in three files with no dependencies, read on.
+> This README is a deeply technical reference — it covers not just *how* to use ASE but *why* every architectural decision was made, every bug that was hit, and every lesson learned building it. If you're evaluating ASE for your own infrastructure or want to understand how a production-grade monitoring dashboard can be built in three files with no dependencies, read on.
 
 ---
 
 ## Table of Contents
 
 1. [The Origin Story](#the-origin-story)
-2. [What Mercury Does](#what-mercury-does)
+2. [What ASE Does](#what-ase-does)
 3. [Architecture Deep Dive](#architecture-deep-dive)
    - [DNS-over-HTTPS (DoH)](#dns-over-https-doh)
    - [Progressive Batch Scanning](#progressive-batch-scanning)
@@ -66,7 +66,7 @@ The obvious solution — a unified dashboard showing all five signals for every 
 
 ### One session, one build
 
-Mercury started as a personal tool, built in a single focused session. The goal was modest: a table showing DNS resolution, SSL expiry, DMARC policy, and SPF record for every domain, refreshing automatically, accessible from a browser with no installation.
+ASE started as a personal tool, built in a single focused session. The goal was modest: a table showing DNS resolution, SSL expiry, DMARC policy, and SPF record for every domain, refreshing automatically, accessible from a browser with no installation.
 
 The first version was genuinely minimal — a few dozen lines of JavaScript, a hardcoded list of domains, five parallel `fetch()` calls to Cloudflare's DNS-over-HTTPS API, and a table that rendered the results. No PIN, no persistence, no notifications. Just the data, live in a browser tab.
 
@@ -74,7 +74,7 @@ What happened next was the familiar story of scope creep driven by real utility:
 
 Each feature revealed a new challenge. The PIN needed to be persistent across devices without a database. SSL expiry couldn't be checked from a browser (no TLS sockets in JavaScript). Notifications needed to be spam-resistant but still fire immediately when you manually hit Refresh. The dropdown menus escaped the wrong stacking contexts. The mobile PIN input auto-focused at the wrong time. Every fix introduced a new edge case.
 
-Five major versions and dozens of point releases later, Mercury was a real product.
+Five major versions and dozens of point releases later, ASE was a real product.
 
 ### The decision to go open-source
 
@@ -86,17 +86,17 @@ The reasons:
 - **Self-hosted tools deserve to be open.** If you're running this on your own server, you should be able to read every line of code. There are no analytics, no tracking, no phoning home.
 - **AI assistance helped build it.** The collaboration model — a human providing product judgment and domain knowledge, an AI providing implementation speed and debugging breadth — produced something neither could have done as well alone. Making the result open-source felt like the right way to complete that story.
 
-### The rename: The All Seeing Eye → Mercury
+### The rename: The All Seeing Eye → Mercury → ASE
 
-The rebrand to Mercury happened as part of the v5.0.0 release that made the project fully public. Mercury — the winged messenger god — is the right metaphor: fast, watchful, a conduit between you and the truth about your infrastructure. The name is distinctive, easy to remember, and doesn't carry the slightly ominous connotation of an all-seeing eye.
+The rebrand to ASE happened as part of the v5.0.0 release that made the project fully public. ASE — the winged messenger god — is the right metaphor: fast, watchful, a conduit between you and the truth about your infrastructure. The name is distinctive, easy to remember, and doesn't carry the slightly ominous connotation of an all-seeing eye.
 
-The repository was renamed from `the-all-seeing-eye` to `mercury-sh`. The landing page moved to `mercury.sh`. The demo went live at `demo.mercury.sh` showing the top 100 most-visited domains on the internet, checked in real time.
+The repository was renamed from `the-all-seeing-eye` to `ase`. The landing page moved to `ase.so`. The demo went live at `demo.ase.so` showing the top 100 most-visited domains on the internet, checked in real time.
 
 ---
 
-## What Mercury Does
+## What ASE Does
 
-Mercury monitors any list of domains and reports on five signals simultaneously:
+ASE monitors any list of domains and reports on five signals simultaneously:
 
 | Signal | What it tells you |
 |--------|-------------------|
@@ -129,7 +129,7 @@ Mercury monitors any list of domains and reports on five signals simultaneously:
 **Landing Page (v5.1.0+)**
 - 11-language i18n system — English · Français · Deutsch · Español · Português · Italiano · Türkçe · Русский · 中文 · 日本語 · हिंदी
 - Language picker in nav: flag emoji + language code, smooth animated dropdown, ARIA-accessible
-- Browser language auto-detection on first visit; preference persisted in `mercury-lang` cookie
+- Browser language auto-detection on first visit; preference persisted in `ase-lang` cookie
 - Zero-dependency i18n engine — no library, pure vanilla JS with `data-i18n` attribute convention
 - `data-i18n-html` for elements containing inline HTML (subtitles with `<strong>`, steps with `<code>`)
 
@@ -176,7 +176,7 @@ The options are:
 2. **DNS-over-HTTPS (DoH)** — make a standard HTTPS fetch to a DNS resolver that speaks HTTP (Cloudflare, Google, Quad9)
 3. **Certificate transparency logs** — use crt.sh or other CT log APIs to get SSL data (doesn't cover DNS uptime)
 
-Mercury uses **Cloudflare's DoH API** (`cloudflare-dns.com/dns-query`) for all live DNS checks. The DoH endpoint accepts standard HTTPS requests and returns DNS answers as JSON:
+ASE uses **Cloudflare's DoH API** (`cloudflare-dns.com/dns-query`) for all live DNS checks. The DoH endpoint accepts standard HTTPS requests and returns DNS answers as JSON:
 
 ```
 GET https://cloudflare-dns.com/dns-query?name=example.com&type=A
@@ -201,11 +201,11 @@ Response:
 - Zero CORS issues — Cloudflare's DoH endpoint returns `Access-Control-Allow-Origin: *`
 - Extremely reliable (Cloudflare's 1.1.1.1 infrastructure)
 - No API key required
-- No rate limits for reasonable usage (Mercury uses batching to stay within bounds)
+- No rate limits for reasonable usage (ASE uses batching to stay within bounds)
 - Returns authoritative answers fast (typically 20–80ms)
 - JSON response format (the `application/dns-json` accept header) is clean to parse
 
-**Why not Google's DoH (`8.8.8.8`)?** Google's DoH also works and is a viable alternative. Cloudflare was chosen because of its reputation for privacy (no query logging) and its generally faster response times in Europe and the Americas. Mercury's `DOH` constant is a single-line change if you want to swap providers.
+**Why not Google's DoH (`8.8.8.8`)?** Google's DoH also works and is a viable alternative. Cloudflare was chosen because of its reputation for privacy (no query logging) and its generally faster response times in Europe and the Americas. ASE's `DOH` constant is a single-line change if you want to swap providers.
 
 #### The 5-query-per-domain approach
 
@@ -247,7 +247,7 @@ ns-1630.awsdns-11.co.uk
 ns-1458.awsdns-54.org
 ```
 
-These are machine-readable hostnames, not human-readable provider names. Mercury maintains a lookup table of well-known patterns and applies them in order:
+These are machine-readable hostnames, not human-readable provider names. ASE maintains a lookup table of well-known patterns and applies them in order:
 
 ```javascript
 function detectNSProvider(nsRecords, domain) {
@@ -279,7 +279,7 @@ function detectNSProvider(nsRecords, domain) {
 
 **The "Own" label problem:** Early versions used `"Own"` as the label for self-hosted nameservers (domains that run their own nameservers, like `apple.com` using `a.ns.apple.com`). This was confusing — users saw `"Own"` for Apple, Facebook, and other major domains and couldn't tell if it meant "they own their NS infrastructure" or "I own this domain's NS."
 
-The fix was to rename `"Own"` to `"Domain"` — a cleaner label meaning "this domain runs its own nameservers." The lookup table was also expanded from a simple string comparison to a full SLD-extraction fallback, so instead of showing `"Own"` for unknown providers, Mercury now shows the registrar or DNS provider name derived from the NS hostname (e.g., `registrar-servers.com` → `"Registrar-servers"`).
+The fix was to rename `"Own"` to `"Domain"` — a cleaner label meaning "this domain runs its own nameservers." The lookup table was also expanded from a simple string comparison to a full SLD-extraction fallback, so instead of showing `"Own"` for unknown providers, ASE now shows the registrar or DNS provider name derived from the NS hostname (e.g., `registrar-servers.com` → `"Registrar-servers"`).
 
 ---
 
@@ -417,7 +417,7 @@ function setRowLoading(domain, loading) {
 
 JavaScript in a browser cannot open raw TLS connections. `new WebSocket('wss://...')` and `fetch('https://...')` both use TLS, but the browser handles the handshake internally and the JavaScript code only sees the HTTP response — never the certificate. There is no `window.getCertificate()` API.
 
-Certificate data is therefore inaccessible client-side unless you go through a workaround. Mercury uses three, in priority order:
+Certificate data is therefore inaccessible client-side unless you go through a workaround. ASE uses three, in priority order:
 
 #### Tier 1: ssl-check.php (batch PHP)
 
@@ -463,7 +463,7 @@ function check_ssl(string $domain, int $timeout = 8): array {
 }
 ```
 
-**Why `verify_peer: false`?** Because Mercury wants to report on expired certificates — if `verify_peer` were `true`, PHP would refuse to connect to a server with an expired or misconfigured cert, and we'd get an error rather than the cert data we want to show.
+**Why `verify_peer: false`?** Because ASE wants to report on expired certificates — if `verify_peer` were `true`, PHP would refuse to connect to a server with an expired or misconfigured cert, and we'd get an error rather than the cert data we want to show.
 
 **The batch endpoint** — early versions called `ssl-check.php?domain=example.com` for each domain individually. For 34 domains that was 34 separate browser→server HTTP requests. Version 2.0 added batch mode: `ssl-check.php?domains=d1.com,d2.com,...` returns a JSON array of all results in a single request.
 
@@ -485,7 +485,7 @@ The PHP server processes domains sequentially (one TLS connection at a time), wh
 
 #### Tier 2: crt.sh certificate transparency logs
 
-If `ssl-check.php` returns a 404 (the user hasn't uploaded the PHP file, or they're on a static host), Mercury falls back to crt.sh — the certificate transparency log search engine:
+If `ssl-check.php` returns a 404 (the user hasn't uploaded the PHP file, or they're on a static host), ASE falls back to crt.sh — the certificate transparency log search engine:
 
 ```javascript
 var res = await fetch(
@@ -835,7 +835,7 @@ The PIN hash needs to survive:
 - Visiting from a different device
 - Clearing browser data
 
-But Mercury has no database. Everything runs from a directory of flat files. The solution is a three-tier persistence system:
+But ASE has no database. Everything runs from a directory of flat files. The solution is a three-tier persistence system:
 
 | Tier | Storage | Scope | Survives incognito? | Survives device switch? |
 |------|---------|-------|---------------------|-------------------------|
@@ -1019,7 +1019,7 @@ The Change PIN modal had identical bugs: duplicate dots, missing centring, and a
 
 ### Email Notifications — The Dual Cooldown System
 
-This is the most complex part of Mercury's codebase. Getting email notifications right required solving several interacting problems.
+This is the most complex part of ASE's codebase. Getting email notifications right required solving several interacting problems.
 
 #### Problem 1: The first implementation never sent emails on Refresh
 
@@ -1204,7 +1204,7 @@ The migration to building all HTML row-by-row (outside heredocs, using string co
 
 ### AES-256-GCM Key Encryption
 
-Mercury stores a Resend API key (starts with `re_...`) to send email notifications. Storing this key in plaintext in `ase_config.json` would mean anyone who gains read access to the server's files gets your Resend API key.
+ASE stores a Resend API key (starts with `re_...`) to send email notifications. Storing this key in plaintext in `ase_config.json` would mean anyone who gains read access to the server's files gets your Resend API key.
 
 #### The encryption flow
 
@@ -1376,7 +1376,7 @@ The atomic write (temp file + `rename()`) prevents data corruption if two device
 
 ## Lessons Learned
 
-These are the 15 most important lessons from building Mercury — specific enough to be actionable for any JavaScript/PHP developer.
+These are the 15 most important lessons from building ASE — specific enough to be actionable for any JavaScript/PHP developer.
 
 ### Lesson 1: Never use function object properties as mutable state
 
@@ -1457,7 +1457,7 @@ PHP heredoc (`<<<HTML ... HTML`) interpolates `$variable`, `{$object->property}`
 
 AES-GCM uses a randomly-generated Initialization Vector (IV) for each encryption. Without the IV, decryption is impossible. The authentication tag must also be stored for decryption verification.
 
-**The rule:** Always store the IV and GCM tag with the ciphertext. Mercury's format: `base64(IV[12] || TAG[16] || CIPHERTEXT)`. Never reuse an IV for the same key — generate a fresh `random_bytes(12)` for every encryption.
+**The rule:** Always store the IV and GCM tag with the ciphertext. ASE's format: `base64(IV[12] || TAG[16] || CIPHERTEXT)`. Never reuse an IV for the same key — generate a fresh `random_bytes(12)` for every encryption.
 
 ### Lesson 12: A 24h cooldown on auto-refresh makes sense; on manual Refresh it's terrible UX
 
@@ -1494,7 +1494,7 @@ A single "Loading…" indicator that disappears when all 100 domains are checked
 
 ## Building with AI
 
-Mercury was built in collaboration with AI assistance — an AI assistant capable of writing, debugging, and reasoning about code.
+ASE was built in collaboration with AI assistance — an AI assistant capable of writing, debugging, and reasoning about code.
 
 ### How the collaboration worked
 
@@ -1533,7 +1533,7 @@ This context summary was pasted at the start of the next session. Combined with 
 - **Feature prioritisation:** Which of twenty possible features should be in v5.0.0 vs deferred
 - **UX feel:** The progressive scan visual effect; the 500ms minimum row loading time; the font sizes and spacing
 - **Business decisions:** Open-source vs closed, MIT vs GPL, Resend vs alternatives
-- **Naming:** "Mercury," the brand identity, the copy
+- **Naming:** "ASE," the brand identity, the copy
 
 ### The iterative improvement loop
 
@@ -1561,11 +1561,11 @@ The AI's contribution to documentation alone would have taken multiple days of h
 
 The philosophy: **use the minimum technology that solves the problem.**
 
-Mercury's UI has one view (the dashboard table), one data model (DOMAINS array + domainState object), and one render function (`renderTable()`). The entire UI state fits comfortably in fewer than 200 lines of pure DOM manipulation code. React's virtual DOM diffing, Vue's reactivity system, Svelte's compiled components — all of these solve problems that Mercury doesn't have.
+ASE's UI has one view (the dashboard table), one data model (DOMAINS array + domainState object), and one render function (`renderTable()`). The entire UI state fits comfortably in fewer than 200 lines of pure DOM manipulation code. React's virtual DOM diffing, Vue's reactivity system, Svelte's compiled components — all of these solve problems that ASE doesn't have.
 
 More practically: adding a framework would require a build step. No npm, no webpack, no `node_modules`, no `package.json`, no `.babelrc`, no CI pipeline for building. The entire app is deployed by copying three files to a server. This is a feature.
 
-Vanilla JS in 2026 is also genuinely capable. `async/await`, `fetch`, `AbortSignal.timeout()`, `Promise.all()`, template literals (avoided for iframe compatibility, but available), `getComputedStyle()` — modern browser JS has everything Mercury needs. The one missing browser API (TLS socket access) is solved by the PHP backend, not by a framework.
+Vanilla JS in 2026 is also genuinely capable. `async/await`, `fetch`, `AbortSignal.timeout()`, `Promise.all()`, template literals (avoided for iframe compatibility, but available), `getComputedStyle()` — modern browser JS has everything ASE needs. The one missing browser API (TLS socket access) is solved by the PHP backend, not by a framework.
 
 ### Why PHP for server endpoints (vs Node.js, Python)
 
@@ -1609,7 +1609,7 @@ The `DOH` constant is a one-line change if you need to switch providers.
 
 **Resend** — developer-focused, generous free tier (100 emails/day, 3,000/month), clean API design, fast delivery, and genuine enthusiasm for the developer community. The API is simple enough to be called from `file_get_contents()` in PHP with a single `stream_context_create()` call — no library needed.
 
-The integration in Mercury: one PHP function, ~20 lines:
+The integration in ASE: one PHP function, ~20 lines:
 
 ```php
 function sendViaResend(string $apiKey, string $from, string $to, string $subject, string $html): array {
@@ -1628,7 +1628,7 @@ function sendViaResend(string $apiKey, string $from, string $to, string $subject
 
 ### Why MIT license
 
-Mercury is built on top of open web standards, uses Cloudflare's public DoH API, and was built with AI assistance. The appropriate license for a tool that the community should be able to use freely is MIT.
+ASE is built on top of open web standards, uses Cloudflare's public DoH API, and was built with AI assistance. The appropriate license for a tool that the community should be able to use freely is MIT.
 
 MIT allows:
 - Commercial use (hosting it for clients, including it in a product)
@@ -1736,11 +1736,11 @@ The single `data-theme` attribute on `<html>` controls the entire theme. All com
 ### Step 1 — Clone or download
 
 ```bash
-git clone https://github.com/paulfxyz/mercury-sh.git
-cd mercury-sh
+git clone https://github.com/paulfxyz/ase.git
+cd ase
 ```
 
-Or download the latest ZIP from [GitHub Releases](https://github.com/paulfxyz/mercury-sh/releases).
+Or download the latest ZIP from [GitHub Releases](https://github.com/paulfxyz/ase/releases).
 
 ### Step 2 — Upload to your server
 
@@ -1848,10 +1848,10 @@ Replace `YOURUSER` with your cPanel username and adjust the path.
 
 Verify after 10 minutes by checking `cron.log` in File Manager:
 ```
-👁  Mercury — update-stats.php v1.0
+👁  ASE — update-stats.php v1.0
    Started: 2026-03-22T00:30:00Z
 ────────────────────────────────────────────────────────────
-  [1/30] Checking mercury.sh…
+  [1/30] Checking ase.so…
          → UP | 28ms | NS=SiteGround | MX=ProtonMail
   ...
 ✓  Checked 30 domains: 30 UP, 0 DOWN
@@ -1878,13 +1878,13 @@ Then at [cron-job.org](https://cron-job.org):
 
 ### Step 6 — Open the dashboard
 
-Visit `https://yourdomain.com/uptime/` in your browser. Enter the PIN. Mercury begins scanning immediately.
+Visit `https://yourdomain.com/uptime/` in your browser. Enter the PIN. ASE begins scanning immediately.
 
 ---
 
 ## Notification System Setup
 
-Mercury sends email alerts via the [Resend](https://resend.com) API. The free tier (100 emails/day, no credit card) is more than sufficient for personal infrastructure monitoring.
+ASE sends email alerts via the [Resend](https://resend.com) API. The free tier (100 emails/day, no credit card) is more than sufficient for personal infrastructure monitoring.
 
 ### What each alert contains
 
@@ -1966,7 +1966,7 @@ The raw API key never appears on disk. `notify_secret.key` is `chmod 0600` and b
 
 ## Security Model
 
-### What Mercury protects
+### What ASE protects
 
 | Threat | Protection |
 |--------|------------|
@@ -1979,19 +1979,19 @@ The raw API key never appears on disk. `notify_secret.key` is `chmod 0600` and b
 | Email flooding | Rate limit: 10 emails/hour, 24h auto cooldown, 5min manual cooldown |
 | Cron endpoint abuse | webhook.do returns no sensitive data; just triggers JS checks |
 
-### What Mercury doesn't protect
+### What ASE doesn't protect
 
 - **Physical server access** — if an attacker has server filesystem access, `notify_secret.key` is only `chmod 0600`, which means the process owner (usually the web server user) can read it. Full server compromise = full key compromise. This is unavoidable without a hardware security module.
 - **TLS interception** — DNS-over-HTTPS provides DNS query privacy, but the dashboard's own HTTP traffic (to `config-write.php`, `notify.php`) depends on the HTTPS cert of your server.
-- **PIN brute force** — the PIN gate is client-side JavaScript. Mercury has no account lockout. If someone hosts their dashboard publicly without HTTP Basic Auth, a determined attacker could automate PIN guesses. **Add HTTP Basic Auth in `.htaccess` for public deployments.**
-- **Multi-user access control** — Mercury is a single-user tool. There's one PIN, one config, one notification address.
+- **PIN brute force** — the PIN gate is client-side JavaScript. ASE has no account lockout. If someone hosts their dashboard publicly without HTTP Basic Auth, a determined attacker could automate PIN guesses. **Add HTTP Basic Auth in `.htaccess` for public deployments.**
+- **Multi-user access control** — ASE is a single-user tool. There's one PIN, one config, one notification address.
 
 ### Recommended security additions for public deployments
 
 ```apache
 # In .htaccess — add HTTP Basic Auth over the entire directory
 AuthType Basic
-AuthName "Mercury — Access Restricted"
+AuthName "ASE — Access Restricted"
 AuthUserFile /home/YOURUSER/.htpasswd
 Require valid-user
 
@@ -2121,7 +2121,7 @@ var NOTIFY_COOLDOWN_AUTO   = 24 * 60 * 60 * 1000; // 24 hours — change to pref
 
 ## Contributing Guide
 
-Contributions are welcome. Mercury is intentionally simple — please keep that spirit.
+Contributions are welcome. ASE is intentionally simple — please keep that spirit.
 
 ### Philosophy
 
@@ -2159,7 +2159,7 @@ Open an issue first to discuss scope and approach before building.
 ### Reporting bugs
 
 Open a GitHub issue with:
-- Mercury version (check header or `CHANGELOG.md`)
+- ASE version (check header or `CHANGELOG.md`)
 - Browser + version
 - Operating system
 - Steps to reproduce
@@ -2173,6 +2173,17 @@ Open a GitHub issue with:
 
 Full history with technical change notes.
 
+### v6.0.0 — 2026-03-28 — Rebrand: Mercury → ASE (The All-Seeing-Eye)
+
+**The monitor returns to its roots.** `mercury-sh` repo renamed to `ase`, `mercury.sh` → `ase.so`, `demo.mercury.sh` → `ase.live`. All files, cookies, JS globals, i18n strings, and docs fully rebranded across 11 languages.
+
+**Changes:**
+- GitHub: `paulfxyz/mercury-sh` → `paulfxyz/ase`
+- Domains: `ase.so` (landing) + `ase.live` (demo)
+- Cookie/global renames: `mercury-lang` → `ase-lang`, `MERCURY_I18N` → `ASE_I18N`
+- Version 5.4.0 → 6.0.0
+- All 11 i18n language files fully updated
+
 ### v5.4.0 — 2026-03-26 — Persistent Uptime + Webhook Automation
 
 **Every check now persists to `uptime.json`**, regardless of source — browser, manual refresh, webhook call, or PHP cron.
@@ -2181,7 +2192,7 @@ Full history with technical change notes.
 - `update-stats.php`: new Step 5.5 merges cron check results into `uptime.json` (same atomic write as `uptime-write.php`)
 - `app.js` webhook mode: `uptimeSave()` + `saveDomainsStats()` now called after `checkAll()` — previously missing from the webhook path
 - Landing page: new **Automated Monitoring** section with 4-step visual flow (webhook → check → persist → alert) and cron-job.org callout
-- `demo.mercury.sh`: 2 cron-job.org jobs created — hourly `webhook.do` (job `7418641`) + 6-hour `update-stats.php` (job `7418643`)
+- `demo.ase.so`: 2 cron-job.org jobs created — hourly `webhook.do` (job `7418641`) + 6-hour `update-stats.php` (job `7418643`)
 - All version strings bumped to 5.4.0
 
 ### v5.3.0 — 2026-03-26 — Tooltip bugfix: all 100 domains
@@ -2195,15 +2206,15 @@ Full history with technical change notes.
 - Footer duplicate "MIT License" removed — now reads "Made by Paul Fleury with ❤️ + AI"
 - All version strings bumped to 5.3.0 across README, landing page, i18n (11 languages)
 
-### v5.2.0 — 2026-03-26 — Production Deployment: mercury.sh + demo.mercury.sh
+### v5.2.0 — 2026-03-26 — Production Deployment: ase.so + demo.ase.so
 
 **First live deployment** to SiteGround hosting.
 
 **Changes:**
-- `landing.html` deployed as `index.html` to `mercury.sh/public_html/`
-- Full app stack deployed to `demo.mercury.sh/public_html/`
-- `demo.mercury.sh`: PIN gate bypassed — dashboard loads directly for public demo
-- Space Grotesk logotype: `mercury` + `.sh` (smaller, bold italic, dropped baseline)
+- `landing.html` deployed as `index.html` to `ase.so/public_html/`
+- Full app stack deployed to `demo.ase.so/public_html/`
+- `demo.ase.so`: PIN gate bypassed — dashboard loads directly for public demo
+- Space Grotesk logotype: `ase` + `.so` (smaller, bold italic, dropped baseline)
 - Inline SVG favicon + Apple Touch Icon + PWA meta tags added to landing page
 - "Perplexity Computer" branding removed across all files — replaced with "Made with ❤️ + AI"
 - INSTALL.md: Two-Domain Deployment section documenting FTP structure
@@ -2219,17 +2230,17 @@ Full history with technical change notes.
 - Language picker in navbar: flag + code badge, smooth dropdown, keyboard accessible
 - `data-i18n` / `data-i18n-html` attributes on all 92 translatable text nodes
 - Browser language auto-detection via `navigator.languages`
-- Cookie persistence (`mercury-lang`, 1-year expiry)
+- Cookie persistence (`ase-lang`, 1-year expiry)
 - `<html lang="...">` updates on switch
 
-### v5.0.0 — 2026-03-25 — Mercury: Full Brand Launch
+### v5.0.0 — 2026-03-25 — Mercury: Full Brand Launch (history)
 
-**The All Seeing Eye → Mercury.** Repository renamed from `the-all-seeing-eye` to `mercury-sh`.
+**The All Seeing Eye → Mercury → ASE.** Repository renamed from `the-all-seeing-eye` to `ase`.
 
 **Changes:**
-- Brand rebrand: all references to "The All Seeing Eye" replaced with "Mercury — Domain Guardian"
-- `mercury.sh` landing page live
-- `demo.mercury.sh` public demo with top-100 world domains
+- Brand rebrand: all references to "The All Seeing Eye" replaced with "ASE — The All-Seeing-Eye · Domain Guardian"
+- `ase.so` landing page live
+- `demo.ase.so` public demo with top-100 world domains
 - BUILTIN domain list expanded 50 → 100 domains (ranks 51–100: Baidu, QQ, Samsung, IMDB, MSN, CNN, BBC, Substack, npm, Docker, GitLab, and more)
 - All personal domains removed from shipped `domains.list`
 - Mobile PIN UX: no duplicate dots, centred input, `requestAnimationFrame + setTimeout(120ms)` auto-focus
@@ -2376,8 +2387,8 @@ Suggestions and contributions welcome. Nothing here is committed — it's a list
 ### Won't do
 
 - **npm/node.js build pipeline** — violates the zero-dependency philosophy
-- **Database requirement** — Mercury will always work on flat-file hosting
-- **Docker/Kubernetes deployment guide** — Mercury is designed for simple shared hosting
+- **Database requirement** — ASE will always work on flat-file hosting
+- **Docker/Kubernetes deployment guide** — ASE is designed for simple shared hosting
 - **Mobile app** — the web app is mobile-first and works excellently in a mobile browser
 
 ---
@@ -2388,15 +2399,15 @@ Suggestions and contributions welcome. Nothing here is committed — it's a list
 
 Built by **Paul Fleury** — [paulf.xyz](https://paulf.xyz) / [@paulfxyz on GitHub](https://github.com/paulfxyz)
 
-- Website: [mercury.sh](https://mercury.sh)
-- Demo: [demo.mercury.sh](https://demo.mercury.sh)
-- GitHub: [github.com/paulfxyz/mercury-sh](https://github.com/paulfxyz/mercury-sh)
+- Website: [ase.so](https://ase.so)
+- Demo: [demo.ase.so](https://demo.ase.so)
+- GitHub: [github.com/paulfxyz/ase](https://github.com/paulfxyz/ase)
 
 ### Built with AI
 
-Mercury was designed and built in collaboration with AI assistance. The AI contributed architecture reasoning, implementation code, bug diagnosis, documentation, and the comprehensive CSS/PHP debugging that produced most of the lessons in this README.
+ASE was designed and built in collaboration with AI assistance. The AI contributed architecture reasoning, implementation code, bug diagnosis, documentation, and the comprehensive CSS/PHP debugging that produced most of the lessons in this README.
 
-The collaboration model — human judgment + AI technical depth — produced something neither could have built as well alone. Mercury is a concrete example of what that partnership looks like at a product level.
+The collaboration model — human judgment + AI technical depth — produced something neither could have built as well alone. ASE is a concrete example of what that partnership looks like at a product level.
 
 ### Third-party acknowledgements
 
@@ -2419,4 +2430,4 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-*If Mercury saved you debugging time or gave you visibility into your infrastructure that you didn't have before — [leave a star](https://github.com/paulfxyz/mercury-sh). It helps others find it.*
+*If ASE saved you debugging time or gave you visibility into your infrastructure that you didn't have before — [leave a star](https://github.com/paulfxyz/ase). It helps others find it.*

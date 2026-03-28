@@ -1,6 +1,6 @@
-# Mercury — Installation Guide
+# ASE — Installation Guide
 
-*Mercury, the Winged Messenger God — watching over your domains.*
+*The All-Seeing-Eye (ASE) — watching over your domains.*
 
 A self-hosted, open-source uptime, DNS, SSL and latency monitor.
 Runs entirely in the browser — no framework, no build step, no database.
@@ -32,27 +32,27 @@ Runs entirely in the browser — no framework, no build step, no database.
 > and that directory listing / MIME types are configured correctly.
 ---
 
-## Two-Domain Deployment (mercury.sh Official Setup)
+## Two-Domain Deployment (ase.so Official Setup)
 
-This is the production setup for [mercury.sh](https://mercury.sh) and [demo.mercury.sh](https://demo.mercury.sh). Two separate FTP document roots under one SiteGround account.
+This is the production setup for [ase.so](https://ase.so) and [ase.live](https://ase.live). Two separate FTP document roots under one SiteGround account.
 
 ### Domain layout
 
 | Domain | Purpose | Files |
 |---|---|---|
-| `mercury.sh` | Marketing landing page | `index.html` (from `landing.html`) + `i18n.js` |
-| `demo.mercury.sh` | Live app demo | Full stack: HTML + JS + CSS + PHP files |
+| `ase.so` | Marketing landing page | `index.html` (from `landing.html`) + `i18n.js` |
+| `ase.live` | Live app demo | Full stack: HTML + JS + CSS + PHP files |
 
 ### FTP structure
 
 ```
 / (FTP root)
-├── mercury.sh/
+├── ase.so/
 │   └── public_html/
 │       ├── index.html      ← landing page (landing.html renamed)
 │       └── i18n.js         ← 11-language translation module
 │
-└── demo.mercury.sh/
+└── ase.live/
     └── public_html/
         ├── index.html
         ├── app.js
@@ -70,8 +70,8 @@ This is the production setup for [mercury.sh](https://mercury.sh) and [demo.merc
 
 ### Notes
 
-- The `landing.html` file in this repo is deployed **as** `index.html` on the `mercury.sh` root — it is the marketing homepage, not the app.
-- The `index.html` in this repo (the app shell) goes to `demo.mercury.sh/public_html/` unchanged.
+- The `landing.html` file in this repo is deployed **as** `index.html` on the `ase.so` root — it is the marketing homepage, not the app.
+- The `index.html` in this repo (the app shell) goes to `ase.live/public_html/` unchanged.
 - `i18n.js` must be co-located with the landing page — it is loaded via a relative `<script src="./i18n.js">` in `landing.html`.
 - `.htaccess` only applies to the demo subdomain — the landing page doesn't need it.
 - No `chmod` needed on SiteGround — PHP scripts run as your user and can write files with default 644 permissions.
@@ -122,9 +122,9 @@ Edit `domains.list` — one bare domain per line, no `https://`:
 
 ```
 # My sites
-mercury.sh
+ase.so
 paulf.xyz
-demo.mercury.sh
+ase.live
 
 # Benchmarks
 github.com
@@ -174,10 +174,10 @@ php /home/YOURUSER/public_html/uptime/update-stats.php >> /home/YOURUSER/public_
 After 10 minutes, open **File Manager** and check `cron.log`:
 
 ```
-👁  Mercury — update-stats.php v1.0
+👁  ASE — update-stats.php v1.0
    Started: 2026-03-22T00:30:00Z
 ────────────────────────────────────────────────────────────
-  [1/30] Checking mercury.sh…
+  [1/30] Checking ase.so…
          → UP | 28ms | NS=SiteGround | MX=ProtonMail | DMARC=quarantine | SPF=~all
   ...
 ✓  Checked 30 domains: 30 UP, 0 DOWN, 0 alerts
@@ -278,7 +278,7 @@ RewriteRule ^webhook\.do$ webhook.do [L,T=text/html]
 
 **2. Test that `webhook.do` is accessible** — open
 `https://up.yourdomain.com/webhook.do` in your browser. You should see a
-plain page that says "Mercury — Webhook". If you get a 404,
+plain page that says "ASE — Webhook". If you get a 404,
 check the .htaccess rule. If you get a blank page, the rule isn't active yet.
 
 **3. Create a free account** at [cron-job.org](https://cron-job.org/en/)
@@ -286,7 +286,7 @@ check the .htaccess rule. If you get a blank page, the rule isn't active yet.
 **4. Add a new cron job:**
 
 - Click **CREATE CRONJOB** in the dashboard
-- **Title:** `Mercury — mercury.sh`
+- **Title:** `ASE — ase.so`
 - **URL:** `https://up.yourdomain.com/webhook.do`
   *(replace with your actual URL)*
 - **Schedule:** Every 10 minutes → `*/10 * * * *`

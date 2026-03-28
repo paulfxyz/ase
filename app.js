@@ -1,5 +1,5 @@
 /*
- * The Mercury — app.js
+ * The All-Seeing-Eye — app.js
  * All JavaScript for the dashboard.
  * Loaded by index.html via <script src="app.js"></script>
  */
@@ -1053,7 +1053,7 @@ function detectNSProvider(nsRecords, domain) {
    *   domain=cloudflare.com, ns=ns3.cloudflare.com → apex match → "Domain"
    *   domain=apple.com, ns=a.ns.apple.com          → apex match → "Domain"
    *   domain=amazon.com, ns=ns1.amzndns.co.uk       → no match  → "Own"
-   *   domain=mercury.sh, ns=ns1.myregistrar.com → no match  → check Cloudflare
+   *   domain=ase.so, ns=ns1.myregistrar.com → no match  → check Cloudflare
    */
   var domainApex = apexDomain(domain);
   var allSelfHosted = hosts.every(function(host) {
@@ -1065,8 +1065,8 @@ function detectNSProvider(nsRecords, domain) {
   if (all.includes('cloudflare'))                         return 'Cloudflare';
 
   /* ── Registrar / branded NS ──
-   * If the NS hostname contains the domain apex (e.g. ns1.mercury.sh
-   * for mercury.sh), label it with the capitalised domain name.
+   * If the NS hostname contains the domain apex (e.g. ns1.ase.so
+   * for ase.so), label it with the capitalised domain name.
    * Otherwise extract the registrar name from the NS host:
    * e.g. ns1.registrar-servers.com → "Registrar-servers"
    * This is more informative than the generic "Own" label.
@@ -1229,7 +1229,7 @@ function setRowLoading(domain, loading) {
  * For built-in top-100 domains, NS/MX/DMARC/SPF are pre-seeded
  * from scan data. For custom domains, we look them up live.
  *
- * @param {string} domain — bare domain name e.g. "mercury.sh"
+ * @param {string} domain — bare domain name e.g. "ase.so"
  * @param {boolean} fullScan — if true, also fetch NS/MX/TXT/DMARC
  */
 
@@ -1461,12 +1461,12 @@ async function checkAll() {
   /* Anti-spam guard */
   var now = Date.now();
   if (_checkRunning) {
-    console.log('[Mercury] Check already running — ignoring duplicate request');
+    console.log('[ASE] Check already running — ignoring duplicate request');
     return;
   }
   if (now - _lastCheckAll < CHECK_ALL_MIN_GAP) {
     var wait = Math.ceil((CHECK_ALL_MIN_GAP - (now - _lastCheckAll)) / 1000);
-    console.log('[Mercury] Rate limit: please wait ' + wait + 's before refreshing again');
+    console.log('[ASE] Rate limit: please wait ' + wait + 's before refreshing again');
     return;
   }
 
@@ -1721,10 +1721,10 @@ async function loadDomainList() {
         dmarc: 'missing', spf: '', custom: false
       };
     });
-    console.log('[Mercury] Loaded ' + DOMAINS.length + ' domains from domains.list');
+    console.log('[ASE] Loaded ' + DOMAINS.length + ' domains from domains.list');
   } catch(e) {
     DOMAINS = BUILTIN.slice();
-    console.log('[Mercury] domains.list unavailable (' + e.message + ') — using built-in top-100');
+    console.log('[ASE] domains.list unavailable (' + e.message + ') — using built-in top-100');
   }
 
   /* Initialise empty state for all domains, reset SSL check cache */
@@ -1755,7 +1755,7 @@ async function loadDomainList() {
             _sslChecked[d.domain] = true; /* don't re-query crt.sh for these */
           }
         });
-        console.log('[Mercury] SSL data loaded from domains.json for ' + Object.keys(sslMap).length + ' domains');
+        console.log('[ASE] SSL data loaded from domains.json for ' + Object.keys(sslMap).length + ' domains');
       }
     }
   } catch(e) { /* domains.json not available — crt.sh fallback will run */ }
@@ -1926,7 +1926,7 @@ async function saveDomainsStats() {
     var resp = await fetch('./domains.stats', {
       method: 'PUT', headers: { 'Content-Type': 'text/csv' }, body: csv
     });
-    if (resp.ok) console.log('[Mercury] domains.stats saved (' + DOMAINS.length + ' domains)');
+    if (resp.ok) console.log('[ASE] domains.stats saved (' + DOMAINS.length + ' domains)');
   } catch(e) { /* static host — ignore */ }
 }
 
@@ -1936,7 +1936,7 @@ function exportCSV() {
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
   a.href = url;
-  a.download = 'mercury-sh-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.download = 'ase-' + new Date().toISOString().slice(0,10) + '.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1957,7 +1957,7 @@ function checkWebhookMode() {
   var hash = window.location.hash;
   if (!path.endsWith('webhook.do') && hash !== '#webhook') return false;
 
-  console.log('[Mercury] Webhook mode — skipping PIN, running headless check');
+  console.log('[ASE] Webhook mode — skipping PIN, running headless check');
   var overlay = document.getElementById('pin-overlay');
   if (overlay) overlay.style.display = 'none';
 
@@ -1970,7 +1970,7 @@ function checkWebhookMode() {
        across all invocation sources — browser, manual refresh, and cron/webhook. */
     uptimeSave();
     saveDomainsStats();
-    console.log('[Mercury] Webhook complete. ' + DOMAINS.length + ' domains checked. Uptime persisted.');
+    console.log('[ASE] Webhook complete. ' + DOMAINS.length + ' domains checked. Uptime persisted.');
   });
   return true;
 }
@@ -3088,7 +3088,7 @@ async function sendHealthReport(isManual, force) {
     });
     var json = await res.json();
     if (json && json.ok) {
-      console.log('[Mercury] Health digest sent (' + issues.length + ' issue(s))');
+      console.log('[ASE] Health digest sent (' + issues.length + ' issue(s))');
       /* Persist updated send timestamps to survive page reload */
       _notifySaveState();
     }
@@ -3115,7 +3115,7 @@ function _notifySaveState() {
 function _notifyLoadState(cfg) {
   if (cfg && cfg.notify_last_sent && typeof cfg.notify_last_sent === 'object') {
     _notifyLastSent = cfg.notify_last_sent;
-    console.log('[Mercury] Notification state loaded (' + Object.keys(_notifyLastSent).length + ' entries)');
+    console.log('[ASE] Notification state loaded (' + Object.keys(_notifyLastSent).length + ' entries)');
   }
 }
 
@@ -3192,6 +3192,6 @@ function cpMobileInput(el) {
   if (!checkWebhookMode()) {
     /* Normal mode — PIN gate is already visible in the HTML.
        initDashboard() is called by pinCheck() → checkFirstUse() after unlock. */
-    console.log('[Mercury] Ready. Config loaded. Waiting for PIN...');
+    console.log('[ASE] Ready. Config loaded. Waiting for PIN...');
   }
 })();
