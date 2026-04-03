@@ -2431,3 +2431,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ---
 
 *If ASE saved you debugging time or gave you visibility into your infrastructure that you didn't have before — [leave a star](https://github.com/paulfxyz/ase). It helps others find it.*
+
+---
+
+## Disclaimer
+
+This project is **100% vibe coding**.
+
+I'm not a software engineer, a professional developer, or a trained coder. I'm a former hacker turned entrepreneur who has built a very good working relationship with AI — specifically tools like [Claude](https://claude.ai) and [Perplexity Computer](https://www.perplexity.ai/computer). Every line of code in this project was written collaboratively with AI assistance. I directed it, shaped it, and made the product decisions — the AI did the heavy lifting on implementation.
+
+I make no claims about code quality, best practices, or architectural correctness. It works, it's useful, and I'm proud of it — but please don't judge it by the standards of a professionally engineered codebase.
+
+If you're a real engineer and something here makes you cringe, you're probably right. Feel free to fork it and make it better. That's what open source is for.
+
+— [Paul Fleury](https://www.linkedin.com/in/paulfxyz/)
