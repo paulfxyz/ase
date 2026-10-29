@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ASE — The All-Seeing-Eye · Domain Guardian</title>
-<meta name="description" content="ASE watches over your websites and domains. Uptime, DNS, SSL, and email alerts — flawlessly, serverlessly.">
+<meta name="description" content="ASE watches over your websites and domains. DNS, SSL and email-security checks with email alerts — self-hosted and open source.">
 <meta name="theme-color" content="#7C6CF8">
 
 <!-- Favicons & App Icons -->
@@ -1903,6 +1903,11 @@ footer {
 }
 
 /* Mobile: hide lang-name on very small screens */
+/* Phones: the GitHub button pushed the hamburger off-screen (it is also in the drawer/footer) */
+@media (max-width: 640px) {
+  .nav-gh { display: none !important; }
+}
+
 @media (max-width: 480px) {
   .lang-name { display: none; }
   .lang-trigger { padding: 6px 8px; }
@@ -1969,7 +1974,7 @@ footer {
       </svg>
     </button>
 
-    <a href="https://github.com/paulfxyz/ase" target="_blank" rel="noopener" class="btn btn-ghost" style="margin-left: var(--space-2)">
+    <a href="https://github.com/paulfxyz/ase" target="_blank" rel="noopener" class="btn btn-ghost nav-gh" style="margin-left: var(--space-2)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.26c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.17-1.11-1.48-1.11-1.48-.91-.64.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.38 9.38 0 0112 7.4c.85 0 1.7.12 2.5.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9v2.81c0 .27.18.59.69.49A10.27 10.27 0 0022 12.26C22 6.58 17.52 2 12 2z"/></svg>
       GitHub
     </a>
@@ -2010,6 +2015,7 @@ footer {
   <a href="#under-the-hood" data-i18n="nav_hood" class="nav-mobile-link">Under the hood</a>
   <a href="#alerts" data-i18n="nav_alerts" class="nav-mobile-link">Alerts</a>
   <a href="https://ase.live" target="_blank" rel="noopener" data-i18n="nav_demo" class="nav-mobile-link">Demo</a>
+  <a href="https://github.com/paulfxyz/ase" target="_blank" rel="noopener" class="nav-mobile-link">GitHub</a>
   <div class="nav-mobile-divider"></div>
   <!-- Language grid -->
   <div class="nav-mobile-lang" id="nav-mobile-lang">
@@ -2145,7 +2151,7 @@ footer {
     <div class="hero-eyebrow">
       <span class="eyebrow-dot"></span>
       <span data-i18n="hero_eyebrow">Introducing ASE · Domain Guardian</span>
-      <span class="eyebrow-badge" data-i18n="hero_badge">v6.0</span>
+      <span class="eyebrow-badge" data-i18n="hero_badge">v6.1</span>
     </div>
 
     <!-- Title -->
@@ -2154,7 +2160,7 @@ footer {
     </h1>
 
     <!-- Subtitle -->
-    <p class="hero-subtitle" data-i18n-html="hero_subtitle"><strong>Uptime. DNS. SSL. Alerts.</strong> ASE watches over every domain in your fleet — serverlessly, flawlessly, and with the speed of a god.</p>
+    <p class="hero-subtitle" data-i18n-html="hero_subtitle"><strong>Uptime. DNS. SSL. Alerts.</strong> ASE watches over every domain in your fleet — flawlessly, and with the speed of a god.</strong> ASE watches over every domain in your fleet — flawlessly, and with the speed of a god.</p>
 
     <!-- Stat pills -->
     <div class="hero-stats">
@@ -2277,7 +2283,7 @@ footer {
     </div>
     <div class="number-item reveal reveal-delay-3">
       <div class="number-value accent-grad">0</div>
-      <div class="number-label" data-i18n="num_deps_label">External dependencies</div>
+      <div class="number-label" data-i18n="num_deps_label">npm packages</div>
     </div>
     <div class="number-item reveal reveal-delay-4">
       <div class="number-value accent-grad">∞</div>
@@ -2341,7 +2347,7 @@ footer {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
         </div>
         <div class="feature-title" data-i18n="feat_6_title">Open source · self-hosted</div>
-        <div class="feature-body" data-i18n="feat_6_body">MIT licensed. Your data stays on your server. No accounts, no cloud dependencies, no tracking. Three files to deploy. Works on SiteGround, cPanel, Cloudflare Pages — everywhere PHP runs.</div>
+        <div class="feature-body" data-i18n="feat_6_body">MIT licensed. Your data stays on your server. No accounts, no analytics, no tracking. No build step. Runs on any PHP host.</div>
       </div>
     </div>
   </div>
@@ -2457,8 +2463,8 @@ footer {
     <div class="steps-grid">
       <div class="step reveal reveal-delay-1">
         <div class="step-num">1</div>
-        <div class="step-title" data-i18n="how_step1_title">Upload three files</div>
-        <div class="step-body" data-i18n-html="how_step1_body">Drop <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">index.html</code>, <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">app.css</code>, and <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">app.js</code> onto any web host. No npm, no build step, no Composer. Works on SiteGround, cPanel, or static hosting in 60 seconds.</div>
+        <div class="step-title" data-i18n="how_step1_title">Upload the files</div>
+        <div class="step-body" data-i18n-html="how_step1_body">Upload the ASE folder to any PHP web host. No npm, no build step, no Composer. Sign in with <code>123456</code> and ASE asks you to pick your own PIN straight away.</code>, <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">app.css</code>, and <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">app.js</code> onto any web host. No npm, no build step, no Composer. Works on SiteGround, cPanel, or static hosting in 60 seconds.</div>
       </div>
 
       <div class="step reveal reveal-delay-2">
@@ -2470,7 +2476,7 @@ footer {
       <div class="step reveal reveal-delay-3">
         <div class="step-num">3</div>
         <div class="step-title" data-i18n="how_step3_title">ASE takes over</div>
-        <div class="step-body" data-i18n="how_step3_body">Auto-refresh every 3 minutes. Cron optional (10-min server-side PHP). Email alerts via Resend on downtime, SSL expiry, or missing DMARC — with smart cooldowns to prevent inbox spam.</div>
+        <div class="step-body" data-i18n="how_step3_body">Auto-refresh every 3 minutes while a tab is open. For round-the-clock history and alerts, schedule <code>update-stats.php</code> with cron. Email alerts via Resend on downtime, SSL expiry or missing DMARC — with cooldowns.</div>
       </div>
     </div>
   </div>
@@ -2551,25 +2557,19 @@ footer {
           encryption.php — AES-256-GCM Key Storage
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
-          <div class="hood-code"><span class="cm">// Encrypt API keys at rest</span>
-<span class="kw">function</span> <span class="fn">encrypt</span>(<span class="var">$plaintext</span>, <span class="var">$pin</span>) {
-  <span class="var">$key</span>  <span class="op">=</span> <span class="fn">hash</span>(<span class="str">'sha256'</span>, <span class="var">$pin</span>, <span class="kw">true</span>);
-  <span class="var">$iv</span>   <span class="op">=</span> <span class="fn">random_bytes</span>(<span class="num">12</span>);
-  <span class="var">$tag</span>  <span class="op">=</span> <span class="str">''</span>;
-  <span class="var">$data</span> <span class="op">=</span> <span class="fn">openssl_encrypt</span>(
-    <span class="var">$plaintext</span>,
-    <span class="str">'aes-256-gcm'</span>,
-    <span class="var">$key</span>, <span class="num">0</span>,
-    <span class="var">$iv</span>, <span class="var">$tag</span>
-  );
-  <span class="kw">return</span> <span class="fn">base64_encode</span>(
-    <span class="var">$iv</span> <span class="op">.</span> <span class="var">$tag</span> <span class="op">.</span> <span class="var">$data</span>
-  );
-}</div>
+          <div class="hood-code"><span class="cm">// Encrypt the Resend API key at rest</span>
+<span class="var">$secret</span> <span class="op">=</span> <span class="fn">ase_secret</span>(<span class="str">'notify_secret.key'</span>); <span class="cm">// random, server-only</span>
+<span class="var">$key</span>    <span class="op">=</span> <span class="fn">hash</span>(<span class="str">'sha256'</span>, <span class="var">$secret</span>, <span class="kw">true</span>);
+<span class="var">$iv</span>     <span class="op">=</span> <span class="fn">random_bytes</span>(<span class="num">12</span>);
+<span class="var">$ct</span>     <span class="op">=</span> <span class="fn">openssl_encrypt</span>(
+  <span class="var">$apiKey</span>, <span class="str">'aes-256-gcm'</span>, <span class="var">$key</span>,
+  <span class="const">OPENSSL_RAW_DATA</span>, <span class="var">$iv</span>, <span class="var">$tag</span>
+);
+<span class="fn">store</span>(<span class="fn">base64_encode</span>(<span class="var">$iv</span> <span class="op">.</span> <span class="var">$tag</span> <span class="op">.</span> <span class="var">$ct</span>));</div>
           <div class="hood-explain" style="border-left:1px solid rgba(37,37,96,0.5);">
-            <p><strong>Why AES-256-GCM?</strong> Your Resend API key and email address are encrypted at rest using your PIN as the passphrase. No plaintext secrets ever touch the filesystem.</p>
-            <p><strong>Key derivation:</strong> SHA-256 hash of your numeric PIN produces the 256-bit encryption key. The 12-byte IV is random per encryption. GCM provides authenticated encryption — any tampering is detected.</p>
-            <p><strong>Result:</strong> Even if someone accesses your server files, they can't read your API keys without the PIN. The PIN never leaves the browser.</p>
+            <p><strong>Why AES-256-GCM?</strong> Your Resend API key is encrypted before it is written to <code>ase_config.json</code>, with a random 12-byte IV per encryption. GCM is authenticated: tampering is detected.</p>
+            <p><strong>Where the key lives:</strong> a random 256-bit secret in <code>notify_secret.key</code> on your server (mode 0600, blocked by <code>.htaccess</code>). The browser never receives the key or its ciphertext.</p>
+            <p><strong>What it covers:</strong> a leaked config file or backup. It does not protect against someone who can read your whole server directory, because the secret sits beside the data.</p>
           </div>
         </div>
       </div>
@@ -2652,10 +2652,10 @@ footer {
 
     <p class="section-eyebrow reveal" style="justify-content:center;display:flex">⚡ Always-on monitoring</p>
     <h2 class="section-title reveal reveal-delay-1" style="text-align:center">
-      Persistent uptime records,<br><em>zero maintenance.</em>
+      Persistent history,<br><em>on a schedule you control.</em>
     </h2>
     <p class="automation-subtitle reveal reveal-delay-2">
-      ASE writes every check to <code class="code-inline">uptime.json</code> on your server — building a cumulative history that survives browser closes, device switches, and midnight cron runs. Point a free webhook scheduler at <code class="code-inline">webhook.do</code> and your dashboard becomes a fully automated, always-recording uptime platform.
+      A browser tab only checks while it is open. Schedule <code class="code-inline">update-stats.php</code> on your server and ASE keeps recording around the clock — the history accumulates in <code class="code-inline">uptime.json</code> and alert emails go out without anyone looking at the dashboard.
     </p>
 
     <div class="automation-flow reveal reveal-delay-3">
@@ -2665,8 +2665,8 @@ footer {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="auto-step-content">
-          <div class="auto-step-title">Schedule a free webhook</div>
-          <div class="auto-step-desc">Use <a href="https://cron-job.org" target="_blank" rel="noopener">cron-job.org</a>, UptimeRobot, GitHub Actions, or any HTTP scheduler. Hit <code class="code-inline">yourdomain.com/webhook.do</code> every hour — free, 30 seconds to set up, no server access needed.</div>
+          <div class="auto-step-title">Schedule update-stats.php</div>
+          <div class="auto-step-desc">Easiest: a server cron job running <code class="code-inline">php update-stats.php</code> (cPanel, SiteGround). Or use cron-job.org, GitHub Actions or any HTTP scheduler: put a random secret in <code class="code-inline">cron_token.key</code> and send it as the <code class="code-inline">X-ASE-Token</code> header. Without that file the HTTP route stays closed.</div>
         </div>
       </div>
 
@@ -2678,7 +2678,7 @@ footer {
         </div>
         <div class="auto-step-content">
           <div class="auto-step-title">ASE checks everything</div>
-          <div class="auto-step-desc">Each webhook call triggers a full DNS + uptime scan across all your domains — A records, NS, MX, DMARC, SPF, SSL expiry — exactly as if you had just hit Refresh. No browser tab needs to be open.</div>
+          <div class="auto-step-desc">Each run checks every domain on the server: A record (DNS reachability, not an HTTP probe), NS, MX, DMARC, SPF and the TLS certificate. No browser tab needs to be open.</div>
         </div>
       </div>
 
@@ -2690,7 +2690,7 @@ footer {
         </div>
         <div class="auto-step-content">
           <div class="auto-step-title">Results saved to <code class="code-inline">uptime.json</code></div>
-          <div class="auto-step-desc">Every check — from any browser, device, or scheduled call — is merged into a single server-side file. Uptime percentage, first-seen timestamp, and last-down time accumulate indefinitely. Your 30-day SLA data is just a file on your server.</div>
+          <div class="auto-step-desc">Every check — from the dashboard or a scheduled run — is merged into one server-side file: checks, successes, first-seen and last-down time. The uptime percentage is cumulative since first-seen, and the file is yours to export.</div>
         </div>
       </div>
 
@@ -2702,7 +2702,7 @@ footer {
         </div>
         <div class="auto-step-content">
           <div class="auto-step-title">Email alerts when anything goes wrong</div>
-          <div class="auto-step-desc">Downtime, SSL expiry ≤30 days, missing DMARC, missing SPF — ASE fires a digest email via Resend the moment an issue is detected, with smart cooldowns to prevent flooding. One email. All issues. Every domain.</div>
+          <div class="auto-step-desc">Downtime, SSL expiry ≤30 days, missing DMARC, missing SPF — ASE sends one digest email via Resend when a run finds an issue, with cooldowns to prevent flooding. Requires your own Resend API key.</div>
         </div>
       </div>
 
@@ -2711,12 +2711,12 @@ footer {
     <div class="auto-cron-callout reveal reveal-delay-4">
       <div class="auto-cron-badge">Free</div>
       <div class="auto-cron-text">
-        <strong>Set up in 30 seconds with cron-job.org</strong>
-        <span>Free account · up to 100 jobs · minute-level precision</span>
+        <strong>Schedule it from anywhere</strong>
+        <span>Server cron needs no token · external schedulers use the X-ASE-Token header</span>
       </div>
       <div class="auto-cron-code">
-        <span class="code-label">Webhook URL</span>
-        <code>https://yourdomain.com/webhook.do</code>
+        <span class="code-label">Server cron command</span>
+        <code>php /path/to/update-stats.php</code>
       </div>
       <a href="https://cron-job.org" target="_blank" rel="noopener" class="btn btn-ghost" style="flex-shrink:0">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -2755,7 +2755,7 @@ footer {
         <span data-i18n="cta_btn_demo">⚡ See Live Demo</span>
       </a>
       <a href="https://github.com/paulfxyz/ase/releases/latest" class="btn btn-primary btn-lg" target="_blank" rel="noopener">
-        <span data-i18n="cta_btn_dl">↓ Download v6.0.0</span>
+        <span data-i18n="cta_btn_dl">↓ Download v6.1.0</span>
       </a>
     </div>
   </div>
@@ -2809,8 +2809,12 @@ footer {
         <div class="version-label"><strong>v4.0</strong> — AES-256 encryption, PIN auth</div>
       </div>
       <div class="version-row">
+        <div class="version-dot"></div>
+        <div class="version-label"><strong>v6.0</strong> — Persistent uptime history</div>
+      </div>
+      <div class="version-row">
         <div class="version-dot active"></div>
-        <div class="version-label"><strong>v6.0</strong> — Persistent uptime · Webhook automation</div>
+        <div class="version-label"><strong>v6.1</strong> — Server-side sign-in · read-only demo · audited claims</div>
       </div>
     </div>
   </div>
@@ -2818,7 +2822,7 @@ footer {
   <div class="reveal reveal-delay-2">
     <p class="section-eyebrow" style="margin-bottom:var(--space-5)" data-i18n="built_eyebrow">How it was built</p>
     <p style="color:var(--text-muted);line-height:1.75;margin-bottom:var(--space-4)">
-      ASE started as "The All Seeing Eye" — a personal uptime monitor built over one marathon session. Every version from v1.0 to v5.3 is documented in the CHANGELOG, including every bug, root cause, and fix.
+      ASE started as "The All Seeing Eye" — a personal uptime monitor built over one marathon session. Every version from v1.0 to v6.1 is documented in the CHANGELOG, including every bug, root cause, and fix.
     </p>
     <p style="color:var(--text-muted);line-height:1.75;">
       The SHA-256 caching bug. The <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">overflow:hidden</code> + <code style="font-family:var(--font-mono);font-size:var(--text-xs);background:var(--surface-2);padding:2px 6px;border-radius:3px">position:sticky</code> conflict. The PHP 7.3 arrow function incompatibility. The MutationObserver that never fired. All documented, all fixed.

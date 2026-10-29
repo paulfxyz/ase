@@ -1,45 +1,54 @@
-# All-Seeing-Eye — Apache configuration
-# Place this file in the same directory as index.html
+# ASE — Apache configuration (v6.1.0)
+# Works on Apache 2.2 and 2.4 (SiteGround, cPanel, most shared hosts).
 
-# ── Whitelist cron-job.org executor IPs (bypass SiteGround bot protection) ────
-# These are the official cron-job.org executor node IPs.
-# Source: https://api.cron-job.org/executor-nodes.json
-# Without this, SiteGround's SGcaptcha intercepts requests before PHP runs.
-SetEnvIf Remote_Addr "116\.203\.129\.16"  cron_allowed
-SetEnvIf Remote_Addr "116\.203\.134\.67"  cron_allowed
-SetEnvIf Remote_Addr "23\.88\.105\.37"    cron_allowed
-SetEnvIf Remote_Addr "128\.140\.8\.200"   cron_allowed
-SetEnvIf Remote_Addr "91\.99\.23\.109"    cron_allowed
-
-<Files "update-stats.php">
-    Order Allow,Deny
-    Allow from env=cron_allowed
-    Allow from 127.0.0.1
-    # Also allow direct browser access for manual runs (remove if you want strict)
-    Allow from all
-</Files>
-
-<Files "webhook.do">
-    Allow from all
-</Files>
-
-# ── Prevent browser caching of the app files ─────────────────────
-# Forces the browser to always fetch fresh HTML/JS/CSS — prevents
-# stale cached versions after an update.
-<FilesMatch "\.(html|js|css|php)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
+# ── Never serve internal files ────────────────────────────────────────────────
+# Settings, secrets, rate-limit state, lock files and temp files. These are read
+# and written by the PHP scripts only.
+<FilesMatch "^(\.ase_config\.lock|ase_config\.json.*|auth_secret\.key|auth_rate\.json|cron_token\.key|notify_secret\.key|notify_rate\.json|cron_notify_sent\.json|ssl_cache\.json|uptime\.json.*|domains\.stats|\.ase_config\.lock|cron\.log|demo\.flag|_ase\.php)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
-# ── Route webhook.do to the webhook HTML file ─────────────────────
-RewriteEngine On
-RewriteRule ^webhook\.do$ webhook.do [L,T=text/html]
-
-# ── Protect sensitive files ───────────────────────────────────────
-# Protect sensitive data files from direct browser access.
-# These are read/written by PHP scripts internally only.
-<FilesMatch "^(ase_config\.json|uptime\.json|notify_secret\.key|notify_rate\.json|cron_notify_sent\.json|domains\.stats|cron\.log)$">
-    Order Allow,Deny
-    Deny from all
+# Dotfiles and VCS metadata
+<FilesMatch "^\.(git|ht|env)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
+
+# ── Only the HTTP methods ASE uses ────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} ^(PUT|DELETE|TRACE|TRACK|CONNECT|PATCH) [NC]
+    RewriteRule .* - [F,L]
+
+    # HTTPS only (the session cookie is Secure on HTTPS). Skipped on localhost.
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:\d+)?$ [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ── Headers ───────────────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "same-origin"
+
+    # Always fetch fresh app code after an update
+    <FilesMatch "\.(html|js|css|php)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+# Do not leak directory listings
+Options -Indexes

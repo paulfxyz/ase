@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
+<script>
+/* ASE demo mode — hostname based, set before first paint so the PIN screen never flashes.
+   Only the public demo host is affected; every self-hosted install keeps its PIN gate. */
+window.ASE_DEMO = window.ASE_DEMO || /(^|\.)ase\.live$/i.test(location.hostname);
+if (window.ASE_DEMO) document.documentElement.classList.add('demo');
+</script>
   <!--
   ╔══════════════════════════════════════════════════════════════╗
   ║  ALL-SEEING-EYE                                              ║
@@ -11,32 +17,27 @@
 
   HOW IT WORKS
   ─────────────────────────────────────────────────────────────
-  1. On load, the app tries to fetch `domains.list` (same directory).
-     - Each non-empty, non-comment line becomes a monitored domain.
-     - If the file is missing or unreachable, the built-in TOP_30 list is used.
+  1. On load, the app asks auth.php who you are. Signed out → PIN pad.
+     The PIN is verified on the server (bcrypt); the browser never sees
+     the hash. Without a PHP backend the app runs in static mode.
+  2. domains.list (one domain per line) is the watchlist; a built-in
+     list is the fallback.
+  3. Each domain gets live DNS-over-HTTPS queries to Cloudflare
+     (A, NS, MX, TXT, DMARC). "UP" means the A record resolves.
+  4. SSL expiry comes from ssl-check.php (real TLS handshake), with
+     crt.sh certificate-transparency as a fallback.
+  5. update-stats.php, run by cron, keeps history and sends alerts
+     while no tab is open.
 
-  2. For each domain, a live DNS-over-HTTPS query is fired to
-     Cloudflare's public DoH API (cloudflare-dns.com/dns-query).
-     This gives us: A record presence (= "up"), latency, and NS info.
-
-  3. SSL expiry dates are seeded from scan data for the top-50 list.
-     Custom-added domains get a placeholder until a real check runs.
-
-  4. The "Add Domain" flow lets users add any domain on the fly.
-     If `domains.list` is writable (local server with write access),
-     the app will also persist the new domain there via a PUT request.
-     On a read-only static host, it just adds it to the in-memory list.
-
-  5. The PIN gate (SHA-256 hashed, no plaintext stored) prevents
-     casual access. Keyboard input + numpad both work.
-     PIN: 1 2 3 4 5 6  (SHA-256: 8d969eef…)
-
-  SECURITY NOTE
+  PRIVACY / SECURITY NOTE
   ─────────────────────────────────────────────────────────────
-  - No data leaves the browser except DNS queries to Cloudflare DoH.
-  - No cookies, no persistent storage used.
-  - PIN is checked purely client-side via SHA-256 comparison.
-  - This is a monitoring DISPLAY tool, not a security perimeter.
+  - Third parties contacted by your browser: Cloudflare DoH (DNS),
+    Google Fonts, Google favicon service, crt.sh (fallback).
+  - Cookies: ase_sid (HttpOnly sign-in), ase-lang / ase-theme
+    (preferences), ase_uptime (local uptime fallback).
+  - The public demo at ase.live is read-only and has no sign-in.
+  - A 6-digit PIN is a gate, not a vault: add HTTP Basic Auth or an
+    IP allow-list for anything sensitive (see INSTALL.md).
   -->
 
   <meta charset="UTF-8">
@@ -52,6 +53,13 @@
     <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<div class="demo-banner" id="demo-banner" role="note">
+  <span class="demo-badge">LIVE DEMO</span>
+  <span>Read-only preview — 100 popular domains, real DNS + SSL checks, uptime recorded server-side.</span>
+  <a href="https://github.com/paulfxyz/ase" target="_blank" rel="noopener">Self-host your own ↗</a>
+  <a href="https://ase.so" target="_blank" rel="noopener">ase.so</a>
+</div>
+
 
 <!-- ════════════════════════════════════════════════════════════
      PIN OVERLAY
@@ -198,17 +206,25 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export CSV
         </button>
+        <button class="dropdown-item" onclick="event.stopPropagation();exportJSON();closeHeaderMenu()" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export JSON
+        </button>
         <button class="dropdown-item" onclick="event.stopPropagation();closeHeaderMenu();openWebhookModal()" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-          Webhook / Cron
+          Scheduled checks
         </button>
-        <button class="dropdown-item" onclick="event.stopPropagation();closeHeaderMenu();openChangePinModal()" role="menuitem">
+        <button class="dropdown-item demo-hide" onclick="event.stopPropagation();closeHeaderMenu();openChangePinModal()" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           Change PIN
         </button>
-        <button class="dropdown-item" id="btn-notify-menu" onclick="event.stopPropagation();closeHeaderMenu();openNotifyModal()" role="menuitem">
+        <button class="dropdown-item demo-hide" id="btn-notify-menu" onclick="event.stopPropagation();closeHeaderMenu();openNotifyModal()" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           Notifications <span id="notify-status-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-left:4px;vertical-align:middle"></span>
+        </button>
+        <button class="dropdown-item demo-hide" onclick="event.stopPropagation();closeHeaderMenu();aseSignOut()" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign out
         </button>
         <button class="dropdown-item" onclick="event.stopPropagation();closeHeaderMenu();openInfoModal()" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -378,16 +394,14 @@
 ═════════════════════════════════════════════════════════════ -->
 <footer>
   <span>
-    <strong>ASE</strong> — open-source monitor
+    <strong>ASE</strong> <span class="ver-tag">v6.1.0</span> — open-source monitor
     &nbsp;·&nbsp;
     <span class="mit-tag">MIT</span>
     &nbsp;·&nbsp;
     <a href="https://github.com/paulfxyz/ase" target="_blank" rel="noopener">GitHub ↗</a>
   </span>
   <span>Data via <a href="https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/" target="_blank" rel="noopener">Cloudflare DoH</a> · No tracking · No cookies</span>
-  <span>
-Made with ❤️ + AI
-  </span>
+  <span><span class="kbd-hints"><kbd>/</kbd> search · <kbd>r</kbd> refresh · <kbd>a</kbd> add · <kbd>?</kbd> help &nbsp;·&nbsp; </span>Made with ❤️ + AI</span>
 </footer>
 
 
@@ -402,28 +416,25 @@ Made with ❤️ + AI
 <div id="webhook-modal" class="modal-overlay" onclick="if(event.target===this)closeWebhookModal()">
   <div class="modal-card">
     <div class="modal-header">
-      <h3 class="modal-title">🔗 Webhook / Cron Setup</h3>
+      <h3 class="modal-title">⏱ Scheduled checks</h3>
       <button onclick="closeWebhookModal()" class="modal-close-btn" aria-label="Close">✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-4);line-height:1.7">
-        Point any HTTP cron service at <code class="code-inline">yourdomain.com/webhook.do</code> to trigger an automatic check and update <code class="code-inline">domains.stats</code> without opening the dashboard.
+        The dashboard only checks while a tab is open. For history and email alerts around the clock, schedule <code class="code-inline">update-stats.php</code> on your server. It runs the same DNS, SSL and mail-policy checks, appends to the uptime history and sends alert emails.
       </p>
       <div class="code-block">
-        <div class="code-label">Recommended cron services (all free)</div>
-        🔁 &nbsp;<a href="https://cron-job.org" target="_blank" style="color:var(--accent)">cron-job.org</a> — every 5 min, HTTP GET<br>
-        🔁 &nbsp;<a href="https://uptimerobot.com" target="_blank" style="color:var(--accent)">uptimerobot.com</a> — HTTP monitor = free cron<br>
-        🔁 &nbsp;<a href="https://easycron.com" target="_blank" style="color:var(--accent)">easycron.com</a> — free tier available<br>
-        🔁 &nbsp;GitHub Actions with <code>schedule</code> trigger
+        <div class="code-label">Option 1 — server cron (cPanel / SiteGround), no token needed</div>
+        php /home/USER/public_html/PATH/update-stats.php
       </div>
       <div class="code-block" style="margin-top:var(--space-3)">
-        <div class="code-label">Server route (Nginx)</div>
-        location = /webhook.do { try_files /index.html =404; }
+        <div class="code-label">Option 2 — external scheduler (cron-job.org, GitHub Actions…)</div>
+        1. Put a random 24+ character secret in <code>cron_token.key</code><br>
+        2. Call <code>https://yourdomain.com/update-stats.php</code> with the header <code>X-ASE-Token: &lt;secret&gt;</code>
       </div>
-      <div class="code-block" style="margin-top:var(--space-3)">
-        <div class="code-label">Server route (Apache .htaccess)</div>
-        RewriteRule ^webhook\.do$ index.html [L]
-      </div>
+      <p style="font-size:var(--text-xs);color:var(--text-faint);margin-top:var(--space-3);line-height:1.7">
+        Without <code>cron_token.key</code> the HTTP route is disabled. "UP" means the domain's DNS A record resolves — it is not an HTTP check.
+      </p>
     </div>
     <div class="modal-footer">
       <button onclick="closeWebhookModal()" class="btn" style="width:100%">Close</button>
@@ -443,7 +454,7 @@ Made with ❤️ + AI
     <div class="modal-body">
 
     <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-5);line-height:1.7">
-      <strong style="color:var(--text)">The All-Seeing-Eye</strong> is a self-hosted, open-source uptime, DNS, SSL and latency monitor. Everything runs in the browser — no server-side code needed for basic use.
+      <strong style="color:var(--text)">The All-Seeing-Eye</strong> is a self-hosted, open-source uptime, DNS, SSL and latency monitor. The dashboard runs in the browser; the optional PHP files add sign-in, history, SSL checks and scheduled alerts.
     </p>
 
     <div style="display:grid;gap:var(--space-3);margin-bottom:var(--space-5)">
@@ -455,12 +466,12 @@ Made with ❤️ + AI
 
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4)">
         <div style="font-weight:700;font-size:var(--text-sm);margin-bottom:var(--space-2)">📊 domains.stats</div>
-        <div style="font-size:var(--text-xs);color:var(--text-muted);line-height:1.7">CSV snapshot written after every refresh cycle. Requires a server with HTTP PUT write access. On static hosts, the export CSV button gives the same data as a manual download.</div>
+        <div style="font-size:var(--text-xs);color:var(--text-muted);line-height:1.7">CSV snapshot written by <code>update-stats.php</code> on each scheduled run. The Export CSV and Export JSON buttons download the current view at any time.</div>
       </div>
 
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4)">
-        <div style="font-weight:700;font-size:var(--text-sm);margin-bottom:var(--space-2)">🔗 webhook.do</div>
-        <div style="font-size:var(--text-xs);color:var(--text-muted);line-height:1.7">Headless endpoint for cron services. When accessed, it loads the dashboard in an invisible iframe, runs all DNS checks, and writes domains.stats — no browser or PIN required.</div>
+        <div style="font-weight:700;font-size:var(--text-sm);margin-bottom:var(--space-2)">⏱ update-stats.php</div>
+        <div style="font-size:var(--text-xs);color:var(--text-muted);line-height:1.7">The scheduled worker. Run it from a server cron (CLI) or call it over HTTP with a secret token. It stores history and sends alert emails — see More ⋮ → Scheduled checks.</div>
       </div>
 
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4)">
@@ -555,9 +566,6 @@ Made with ❤️ + AI
 
     <div id="sp-error" style="font-size:var(--text-xs);color:var(--red);min-height:18px;margin-bottom:var(--space-3)"></div>
 
-    <button onclick="spSkip()" style="font-size:var(--text-xs);color:var(--text-faint);
-            background:none;border:none;cursor:pointer;font-family:var(--font-display);
-            text-decoration:underline">Skip for now — keep using 123456</button>
   </div>
 </div>
 
@@ -565,7 +573,7 @@ Made with ❤️ + AI
 <!-- ════════════════════════════════════════════════════════════
      CHANGE PIN MODAL
      Three-step flow: current PIN → new PIN → confirm new PIN
-     All validation is client-side via SHA-256.
+     The server verifies the current PIN (auth.php, bcrypt).
 ═════════════════════════════════════════════════════════════ -->
 <div id="change-pin-overlay" style="display:none;position:fixed;inset:0;z-index:8800;
      background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px);

@@ -11,6 +11,46 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 👁 [6.1.0] — 2026-10-29
+
+### Audit release: fixes, honest claims, a few easy features
+
+#### Fixed
+- **`update-stats.php` never ran.** A `*/10` sequence inside the file's own header comment ended the comment early, so PHP failed to parse the file in every release since v1.0. Also fixed escaped `\$` variables and a `$domain…` interpolation bug. The cron path now works from the CLI and over HTTP, and calls `notify.php` in-process.
+- **`webhook.do` removed.** It only ever worked inside a real browser (JavaScript in an iframe), so cron-job.org and similar services recorded nothing. Use `update-stats.php`.
+- **Stale SSL data in the demo.** Hardcoded certificate dates from spring 2026 made healthy sites show `EXPIRED`. Seeds are dropped; certificates are fetched live and cached for 6 hours server-side.
+- 8 duplicate entries in `domains.list` (the "100 domains" were 92 unique) replaced and de-duplicated on load.
+- The SSL alert banner listed every domain; it now shows the six most urgent plus a count.
+- Stored XSS through DNS record text and unvalidated domain input; CSV formula injection.
+- `notify.php` footer linked to a repository that no longer exists.
+
+#### Security
+- New `auth.php`: server-side PIN verification (bcrypt), signed HttpOnly SameSite=Strict session cookie, per-IP and global throttling, set/change PIN, logout that revokes all sessions. The PIN hash is never sent to the browser.
+- `config-write.php`, `notify.php`, `uptime-write.php`, `ssl-check.php` now require a session (or the cron token) and an `X-ASE` header on writes.
+- `ssl-check.php`: private/reserved addresses refused, connects to the validated IP, rate limited, no open CORS.
+- Fresh installs: the factory PIN `123456` can only be used to set a real PIN.
+- Cron token removed from the repository; HTTP cron is enabled only when `cron_token.key` exists.
+- `.htaccess` rewritten for Apache 2.2 and 2.4: denies secrets and state files, forces HTTPS, restricts methods.
+- A frontier-model review (GPT-6.1 Sol Pro) of the new auth layer found a Host-spoofable demo mode, default-PIN session scope, a config race and a fail-open limiter; all fixed before release.
+
+#### Added
+- Built-in read-only demo mode through a `demo.flag` file (no patched `index.html` needed).
+- Domains added in the dashboard are stored on the server and included in scheduled checks.
+- Export JSON, Sign out, keyboard shortcuts (`/`, `r`, `a`, `?`, `Esc`), toast notifications, version tag in the footer.
+- `php auth.php set-pin 482915` CLI command.
+- `.gitignore` for runtime and secret files.
+
+#### Changed (claims corrected)
+- "One HTML file / zero dependencies / serverless / no cookies" replaced with what is true: no npm packages and no build step, but PHP for the full feature set, third-party requests (Cloudflare DoH, Google Fonts and favicons, crt.sh fallback) and four cookies.
+- "UP" is documented as an A-record DNS check, not an HTTP probe.
+- The landing page no longer says the PIN is the encryption passphrase.
+- README, INSTALL, landing page and all 11 language files updated.
+
+#### Upgrade notes
+Upload over the old files, delete `webhook.do`, point your cron at `update-stats.php` (CLI) or call it with the `X-ASE-Token` header. Existing PIN hashes migrate to bcrypt on first sign-in.
+
+---
+
 ## 👁 [6.0.0] — 2026-03-28
 
 ### Rebrand: Mercury → The All-Seeing-Eye (ASE)

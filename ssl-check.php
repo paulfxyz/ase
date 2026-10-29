@@ -25,9 +25,22 @@
  */
 
 /* ── Output headers ─────────────────────────────────────────── */
-header('Content-Type: application/json');
-header('Cache-Control: public, max-age=3600'); /* cert rarely changes within an hour */
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/_ase.php';
+ase_headers();
+header('Cache-Control: private, max-age=1800');   /* same-origin only: no CORS header on purpose */
+
+/* v6.1.0 — this endpoint opens outbound TLS connections, so it must not be an
+   open scanner: sign-in required (the demo is limited to its own watchlist),
+   private/reserved addresses are refused, and callers are rate-limited. */
+$demo = ase_is_demo();
+if (!$demo) ase_require_auth();
+if (!ase_rate_hit('ssl:' . hash('sha256', ase_ip()), 400, 600)) ase_fail(429, 'Rate limit reached');
+@set_time_limit(60);
+$GLOBALS['ase_allowed'] = null;
+if ($demo) {
+    $list = is_file(__DIR__ . '/domains.list') ? file(__DIR__ . '/domains.list', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
+    $GLOBALS['ase_allowed'] = array_flip(array_map('strtolower', array_map('trim', $list)));
+}
 
 /* ── Helper: validate a hostname ────────────────────────────── */
 function is_valid_hostname(string $h): bool {
@@ -42,8 +55,15 @@ function is_valid_hostname(string $h): bool {
  * @param  int    $timeout  seconds
  * @return array  keys: domain, expiry, issuer, days_remaining, valid | error
  */
-function check_ssl(string $domain, int $timeout = 8): array {
+function check_ssl_live(string $domain, int $timeout = 5): array {
     $domain = strtolower(trim($domain));
+    if ($GLOBALS['ase_allowed'] !== null && !isset($GLOBALS['ase_allowed'][$domain])) {
+        return ['domain' => $domain, 'error' => 'Not in the demo watchlist'];
+    }
+    $ip = ase_public_ip($domain);
+    if ($ip === null) {
+        return ['domain' => $domain, 'error' => 'Host does not resolve to a public address'];
+    }
 
     $context = stream_context_create([
         'ssl' => [
@@ -56,7 +76,7 @@ function check_ssl(string $domain, int $timeout = 8): array {
     ]);
 
     $stream = @stream_socket_client(
-        'ssl://' . $domain . ':443',
+        'ssl://' . $ip . ':443',
         $errno, $errstr,
         $timeout,
         STREAM_CLIENT_CONNECT,
@@ -102,14 +122,44 @@ function check_ssl(string $domain, int $timeout = 8): array {
     ];
 }
 
+/**
+ * Cached wrapper: a certificate does not change by the minute, and on the
+ * public demo every visitor would otherwise trigger 100 TLS handshakes.
+ * Successful results are kept for 6 hours in ssl_cache.json; errors are never cached.
+ */
+function check_ssl(string $domain): array {
+    static $cache = null, $dirty = false;
+    $file = __DIR__ . '/ssl_cache.json';
+    if ($cache === null) {
+        $cache = ase_read_json($file);
+        register_shutdown_function(function () use (&$cache, &$dirty, $file) {
+            if ($dirty) { ase_write_json($file, $cache); }
+        });
+    }
+    $domain = strtolower(trim($domain));
+    if (isset($cache[$domain]) && (time() - ($cache[$domain]['at'] ?? 0)) < 21600) {
+        return $cache[$domain]['r'];
+    }
+    $r = check_ssl_live($domain);
+    if (empty($r['error'])) {
+        $r['days_remaining'] = (int) round((strtotime($r['expiry'] . ' 23:59:59 UTC') - time()) / 86400);
+        $cache[$domain] = ['at' => time(), 'r' => $r];
+        if (count($cache) > 600) { $cache = array_slice($cache, -500, null, true); }
+        $dirty = true;
+    }
+    return $r;
+}
+
 /* ── Route: batch (preferred) ───────────────────────────────── */
 if (!empty($_GET['domains'])) {
     $raw     = $_GET['domains'];
     $parts   = array_slice(explode(',', $raw), 0, 50); /* cap at 50 domains per request */
     $results = [];
 
+    $deadline = microtime(true) + 45;                 /* total time budget */
     foreach ($parts as $raw_domain) {
         $domain = strtolower(trim($raw_domain));
+        if (microtime(true) > $deadline) { $results[] = ['domain' => $domain, 'error' => 'time budget exceeded']; continue; }
         if (!is_valid_hostname($domain)) {
             $results[] = ['domain' => $domain, 'error' => 'Invalid hostname'];
             continue;
@@ -130,13 +180,5 @@ if (!$domain || !is_valid_hostname($domain)) {
     exit;
 }
 
-/* Simple per-domain rate limit: max 1 check/domain/2s */
-$rateFile = sys_get_temp_dir() . '/ase_ssl_' . md5($domain) . '.rate';
-if (file_exists($rateFile) && (time() - filemtime($rateFile)) < 2) {
-    /* Return cached error rather than 429 — browser won't retry */
-    echo json_encode(['domain' => $domain, 'error' => 'rate_limited']);
-    exit;
-}
-@touch($rateFile);
 
 echo json_encode(check_ssl($domain));

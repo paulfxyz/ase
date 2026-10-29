@@ -1,9 +1,17 @@
-# Cron log (may contain sensitive path info)
+# Runtime state and secrets created on the server — never commit these
+ase_config.json
+ase_config.json.tmp.*
+auth_secret.key
+auth_rate.json
+cron_token.key
+notify_secret.key
+notify_rate.json
+cron_notify_sent.json
+uptime.json
+uptime.json.tmp.*
+domains.stats
+domains.json
 cron.log
-
-# macOS
-.DS_Store
-
-# Editor
-.vscode/
-*.swp
+demo.flag
+.ase_config.lock
+ssl_cache.json

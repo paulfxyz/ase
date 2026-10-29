@@ -31,14 +31,12 @@
  * @author  Paul Fleury
  */
 
-header('Content-Type: application/json');
-header('Cache-Control: no-store');
-header('X-Content-Type-Options: nosniff');
+require_once __DIR__ . '/_ase.php';
 
-define('CONFIG_FILE',     __DIR__ . '/ase_config.json');
-define('SECRET_FILE',     __DIR__ . '/notify_secret.key');
-define('RATE_LIMIT_FILE', __DIR__ . '/notify_rate.json');
-define('MAX_EMAILS_PER_HOUR', 10);
+defined('CONFIG_FILE')     || define('CONFIG_FILE',     __DIR__ . '/ase_config.json');
+defined('SECRET_FILE')     || define('SECRET_FILE',     __DIR__ . '/notify_secret.key');
+defined('RATE_LIMIT_FILE') || define('RATE_LIMIT_FILE', __DIR__ . '/notify_rate.json');
+defined('MAX_EMAILS_PER_HOUR') || define('MAX_EMAILS_PER_HOUR', 10);
 
 /* ── Helpers ── */
 
@@ -313,7 +311,7 @@ function buildAlertEmail(string $domain, string $status, array $extra = [], bool
       <!-- Timestamp + footer -->
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <span style="font-size:11px;color:#9ca3af">{$timeStr}</span>
-        <a href="https://github.com/paulfxyz/the-all-seeing-eye"
+        <a href="https://github.com/paulfxyz/ase"
            style="font-size:11px;color:#8b5cf6;text-decoration:none;font-weight:600">
           👁 The All Seeing Eye
         </a>
@@ -455,7 +453,7 @@ ROW;
 
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;color:#9ca3af">{$timeStr}</span>
-        <a href="https://github.com/paulfxyz/the-all-seeing-eye"
+        <a href="https://github.com/paulfxyz/ase"
            style="font-size:11px;color:#8b5cf6;text-decoration:none;font-weight:600">👁 The All Seeing Eye</a>
       </div>
     </div>
@@ -465,20 +463,28 @@ ROW;
 HTML;
 }
 
-/* ── Main ── */
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
+/* Browser sessions must send X-ASE; the cron job authenticates with its token instead. */
+function ase_require_xhr_or_cron(): void {
+    if (!ase_cron_ok()) ase_require_xhr();
 }
 
-$body   = file_get_contents('php://input');
+/* ── Main ──
+   ase_notify_main() is also called in-process by update-stats.php (cron), so
+   scheduled alerts need no HTTP self-request and work from the CLI too. */
+function ase_notify_main(string $body): void {
+
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'POST') !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    return;
+}
+
 $posted = json_decode($body, true);
 if (!is_array($posted)) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid JSON body']);
-    exit;
+    return;
 }
 
 $action = $posted['action'] ?? 'notify';
@@ -487,12 +493,12 @@ $action = $posted['action'] ?? 'notify';
 $cfg = readConfig();
 if (empty($cfg['notify_enabled'])) {
     echo json_encode(['ok' => false, 'message' => 'Notifications disabled']);
-    exit;
+    return;
 }
 if (empty($cfg['notify_api_key_enc']) || empty($cfg['notify_from']) || empty($cfg['notify_to'])) {
     http_response_code(400);
     echo json_encode(['error' => 'Notification settings incomplete — configure in dashboard']);
-    exit;
+    return;
 }
 
 $secret = getOrCreateSecret();
@@ -500,7 +506,7 @@ $apiKey = decryptApiKey($cfg['notify_api_key_enc'], $secret);
 if (!$apiKey) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to decrypt API key — reconfigure in dashboard']);
-    exit;
+    return;
 }
 
 $from = $cfg['notify_from'];
@@ -558,7 +564,7 @@ if ($action === 'test') {
     $html    = buildDigestEmail($demoIssues, 34, 1);
     $result  = sendViaResend($apiKey, $from, $to, $subject, $html);
     echo json_encode($result);
-    exit;
+    return;
 }
 
 /* ── Health digest (multi-domain report) ── */
@@ -569,7 +575,7 @@ if ($action === 'digest') {
 
     if (empty($issues) || !is_array($issues)) {
         echo json_encode(['ok' => false, 'message' => 'No issues provided']);
-        exit;
+        return;
     }
 
     /* Count critical issues for subject line */
@@ -581,13 +587,13 @@ if ($action === 'digest') {
 
     if (!checkRateLimit()) {
         echo json_encode(['ok' => false, 'message' => 'Rate limit reached (10 emails/hour)']);
-        exit;
+        return;
     }
 
     $html   = buildDigestEmail($issues, $totalDomains, $domainsDown);
     $result = sendViaResend($apiKey, $from, $to, $subject, $html);
     echo json_encode($result);
-    exit;
+    return;
 }
 
 /* ── Downtime / recovery notification ── */
@@ -597,12 +603,12 @@ $status = strtoupper(trim($posted['status'] ?? 'DOWN'));
 if (!$domain) {
     http_response_code(400);
     echo json_encode(['error' => 'domain required']);
-    exit;
+    return;
 }
 
 if (!checkRateLimit()) {
     echo json_encode(['ok' => false, 'message' => 'Rate limit reached (10 emails/hour)']);
-    exit;
+    return;
 }
 
 /* Collect all health fields from the POST body */
@@ -624,3 +630,14 @@ $subject = $status === 'DOWN'
 $html   = buildAlertEmail($domain, $status, $extra);
 $result = sendViaResend($apiKey, $from, $to, $subject, $html);
 echo json_encode($result);
+}
+
+if (!defined('ASE_NOTIFY_INCLUDED')) {
+    ase_headers();
+    ase_deny_in_demo();
+    if (php_sapi_name() !== 'cli') {
+        ase_require_xhr_or_cron();
+        ase_require_auth(true);
+    }
+    ase_notify_main((string)file_get_contents('php://input'));
+}

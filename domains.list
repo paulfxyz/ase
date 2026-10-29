@@ -1,4 +1,4 @@
-# Mercury — Default Domain Watchlist
+# ASE — Default Domain Watchlist
 # World's top 100 most-visited domains (Similarweb / Cloudflare Radar 2025)
 # One domain per line. Lines starting with # are ignored.
 # Replace this file with your own domains to monitor your infrastructure.
@@ -98,11 +98,11 @@ intercom.com
 sendgrid.com
 mailchimp.com
 cloudinary.com
-hubspot.com
-figma.com
-vercel.com
-notion.so
-slack.com
-stripe.com
-shopify.com
-zoom.us
+telegram.org
+snapchat.com
+aliexpress.com
+tumblr.com
+mozilla.org
+python.org
+nginx.org
+shein.com

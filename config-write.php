@@ -1,106 +1,21 @@
 <?php
 /**
- * config-write.php — All-Seeing-Eye configuration persistence endpoint
+ * config-write.php — settings persistence (v6.1.0)
  *
- * Reads and writes ase_config.json in the same directory.
- * Called by the browser to persist settings (PIN hash, theme, custom domains)
- * across sessions — including incognito — without relying on localStorage
- * or attempting to rewrite index.html via HTTP PUT.
+ *   GET  → signed-out: { theme, authenticated:false }  (nothing sensitive)
+ *          signed-in:  full settings WITHOUT PIN hash or API-key ciphertext
+ *   POST → merge settings into ase_config.json. Requires a session and the
+ *          X-ASE header; always refused on the public demo.
  *
- * ase_config.json schema:
- * {
- *   "pin_hash":        "sha256_hex_string",   // 64 hex chars
- *   "theme":           "light" | "dark",      // default theme preference
- *   "custom_domains":  ["dom1.com", ...],     // domains added via UI
- *   "notify_enabled":     true | false,           // email notifications on/off
- *   "notify_from":      "from@example.com",       // sender email (Resend verified)
- *   "notify_to":        "to@example.com",         // recipient email
- *   "notify_api_key_enc": "base64...",            // AES-256-GCM encrypted Resend key
- *   "notify_last_sent":  {"domain:type": timestamp_ms, ...}, // cooldown persistence
- *   "updated_at":       "ISO 8601 timestamp"
- * }
- *
- * Endpoints:
- *   GET  config-write.php           → returns current ase_config.json (or {})
- *   POST config-write.php           → merges posted JSON into ase_config.json
- *
- * Security:
- *   - Only hex PIN hashes accepted (64-char [a-f0-9])
- *   - Theme must be "light" or "dark"
- *   - Domain names validated against RFC-1123 hostname pattern
- *   - Max 200 custom domains
- *   - File locked during write (LOCK_EX) to prevent race conditions
- *   - CORS header allows same-origin only (no wildcard)
- *
- * Usage (JavaScript):
- *   // Read config
- *   const cfg = await fetch('./config-write.php').then(r => r.json());
- *
- *   // Write config (partial update — only send fields you want to change)
- *   await fetch('./config-write.php', {
- *     method: 'POST',
- *     headers: { 'Content-Type': 'application/json' },
- *     body: JSON.stringify({ pin_hash: newHash })
- *   });
- *
- * @version 2.1.0
- * @author  Paul Fleury
+ * PIN changes no longer go through here — see auth.php. The PIN hash is never
+ * sent to the browser. The Resend key is encrypted at rest (AES-256-GCM, key
+ * file notify_secret.key) and is write-only from the browser's point of view.
  */
+require_once __DIR__ . '/_ase.php';
+ase_headers();
 
-header('Content-Type: application/json');
-header('Cache-Control: no-store, no-cache, must-revalidate');
-header('X-Content-Type-Options: nosniff');
+define('CONFIG_FILE', ASE_CONFIG_FILE);
 
-/* ── Config file path ── */
-define('CONFIG_FILE', __DIR__ . '/ase_config.json');
-
-/* ── Helpers ── */
-
-/**
- * Read and decode ase_config.json.
- * Returns an array (never false/null — falls back to []).
- */
-function readConfig() {
-    if (!file_exists(CONFIG_FILE)) return [];
-    $raw = file_get_contents(CONFIG_FILE);
-    if ($raw === false) return [];
-    $decoded = json_decode($raw, true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-/**
- * Write $config to ase_config.json atomically using a temp file.
- * Uses LOCK_EX to prevent concurrent writes.
- *
- * @param array $config
- * @return bool
- */
-function writeConfig(array $config) {
-    $config['updated_at'] = gmdate('c'); // ISO 8601 UTC
-    $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-    /* Write to a temp file then rename — atomic on POSIX systems */
-    $tmp = CONFIG_FILE . '.tmp.' . getmypid();
-    $fp = fopen($tmp, 'w');
-    if (!$fp) return false;
-    if (!flock($fp, LOCK_EX)) { fclose($fp); unlink($tmp); return false; }
-    fwrite($fp, $json);
-    flock($fp, LOCK_UN);
-    fclose($fp);
-    return rename($tmp, CONFIG_FILE);
-}
-
-/**
- * Validate a SHA-256 hex hash (exactly 64 lowercase hex chars).
- */
-function isValidHash($h) {
-    return is_string($h) && preg_match('/^[a-f0-9]{64}$/', $h);
-}
-
-/**
- * Validate a domain name (hostname, RFC-1123).
- * Allows a-z, A-Z, 0-9, hyphens, dots. Between 3 and 253 chars.
- */
 function isValidDomain($d) {
     return is_string($d)
         && strlen($d) >= 3
@@ -113,12 +28,28 @@ function isValidDomain($d) {
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
-    /* Return the current config */
-    echo json_encode(readConfig(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    exit;
+    $cfg = ase_config();
+    $demo = ase_is_demo();
+    if (!$demo && !ase_authenticated()) {
+        ase_out(['theme' => $cfg['theme'] ?? null, 'authenticated' => false]);
+    }
+    if ($demo) {                       /* public demo: theme only, never emails or keys */
+        ase_out(['theme' => $cfg['theme'] ?? null, 'demo' => true]);
+    }
+    $safe = $cfg;
+    unset($safe['pin_hash'], $safe['pin_pw']);
+    $safe['notify_api_key_set'] = !empty($safe['notify_api_key_enc']);
+    unset($safe['notify_api_key_enc']);
+    $safe['authenticated'] = true;
+    $safe['pin_default']   = ase_pin_is_default($cfg);
+    ase_out($safe);
 }
 
 if ($method === 'POST') {
+    ase_deny_in_demo();
+    ase_require_xhr();
+    ase_require_auth();
+    ase_config_lock();       /* serialise read-modify-write with auth.php */
     /* Read and decode posted body */
     $body = file_get_contents('php://input');
     $posted = json_decode($body, true);
@@ -130,19 +61,8 @@ if ($method === 'POST') {
     }
 
     /* Load existing config to merge into */
-    $config = readConfig();
+    $config = ase_config();
     $changed = false;
-
-    /* ── PIN hash ── */
-    if (isset($posted['pin_hash'])) {
-        if (!isValidHash($posted['pin_hash'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'pin_hash must be a 64-char lowercase hex SHA-256 hash']);
-            exit;
-        }
-        $config['pin_hash'] = $posted['pin_hash'];
-        $changed = true;
-    }
 
     /* ── Theme ── */
     if (isset($posted['theme'])) {
@@ -213,15 +133,7 @@ if ($method === 'POST') {
             exit;
         }
 
-        /* Load or create the server-side secret */
-        $secretFile = __DIR__ . '/notify_secret.key';
-        if (file_exists($secretFile)) {
-            $secret = trim(file_get_contents($secretFile));
-        } else {
-            $secret = bin2hex(random_bytes(32));
-            file_put_contents($secretFile, $secret);
-            chmod($secretFile, 0600);
-        }
+        $secret = ase_secret(__DIR__ . '/notify_secret.key');
 
         /* Encrypt using AES-256-GCM */
         $encKey  = hash('sha256', $secret, true);
@@ -261,11 +173,11 @@ if ($method === 'POST') {
 
     if (!$changed) {
         http_response_code(400);
-        echo json_encode(['error' => 'No valid fields provided (pin_hash, theme, custom_domains, notify_*)']);
+        echo json_encode(['error' => 'No valid fields provided (theme, custom_domains, notify_*)']);
         exit;
     }
 
-    if (!writeConfig($config)) {
+    if (!ase_config_save($config)) {
         http_response_code(500);
         echo json_encode(['error' => 'Failed to write config file — check directory write permissions']);
         exit;

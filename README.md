@@ -4,13 +4,15 @@
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES2020-yellow?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![PHP](https://img.shields.io/badge/PHP-7.4%2B-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-6.0.0-blue?style=flat-square)](https://github.com/paulfxyz/ase/releases)
+[![Version](https://img.shields.io/badge/Version-6.1.0-blue?style=flat-square)](https://github.com/paulfxyz/ase/releases)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-purple?style=flat-square)](#setup--installation)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-success?style=flat-square)](#tech-stack-decisions)
+[![No build step](https://img.shields.io/badge/Build%20step-none-success?style=flat-square)](#tech-stack-decisions)
 
-**Self-hosted uptime, DNS, SSL and email alert monitor. One HTML file. Zero dependencies. Zero build step.**
+**Self-hosted DNS, SSL and email-security monitor with email alerts. Plain HTML, JavaScript and PHP. No npm, no database, no build step.**
 
-*The All-Seeing-Eye (ASE) — watching over your domains, flawlessly, serverlessly.*
+*The All-Seeing-Eye (ASE) — a small, honest watchtower for your domains.*
+
+> **v6.1.0 is an audit release.** The code, the claims in this README and the landing page were re-checked against what the software really does, several bugs and security gaps were fixed, and a few claims were corrected. See [Audit Notes](#audit-notes-v610).
 
 ---
 
@@ -18,7 +20,7 @@
 
 ---
 
-> This README is a deeply technical reference — it covers not just *how* to use ASE but *why* every architectural decision was made, every bug that was hit, and every lesson learned building it. If you're evaluating ASE for your own infrastructure or want to understand how a production-grade monitoring dashboard can be built in three files with no dependencies, read on.
+> This README is a deeply technical reference — it covers not just *how* to use ASE but *why* every architectural decision was made, every bug that was hit, and every lesson learned building it. If you're evaluating ASE for your own infrastructure or want to understand how a small monitoring dashboard can be built with plain HTML, JavaScript and PHP and no build tooling, read on. Sections that describe the early PIN design (SHA-256 in the browser) are kept as history; [Security Model](#security-model) describes the current design.
 
 ---
 
@@ -40,6 +42,7 @@
    - [AES-256-GCM Key Encryption](#aes-256-gcm-key-encryption)
    - [Uptime Persistence Evolution](#uptime-persistence-evolution)
 4. [Lessons Learned](#lessons-learned)
+   - [Audit Notes (v6.1.0)](#audit-notes-v610)
 5. [Building with AI](#building-with-ai)
 6. [Tech Stack Decisions](#tech-stack-decisions)
 7. [File-by-File Reference](#file-by-file-reference)
@@ -62,7 +65,7 @@ Managing more than thirty domains — a mix of production apps, side projects, c
 
 No existing tool solved this combination cleanly. Uptime monitors like UptimeRobot and Better Uptime check HTTP reachability, but they say nothing about DNS health, mail security posture, or SSL issuer. DMARC analysis tools check email infrastructure but ignore uptime. SSL monitoring dashboards don't query nameservers. To get the full picture of a domain's health, you had to cross-reference four different dashboards, none of which agreed on what mattered.
 
-The obvious solution — a unified dashboard showing all five signals for every domain at once — didn't exist as a simple, self-hosted, zero-dependency tool. Every existing option was either a SaaS with per-domain pricing, an enterprise product with a Kubernetes deployment guide, or a simple uptime check that missed the DNS and mail security story entirely.
+The obvious solution — a unified dashboard showing all five signals for every domain at once — didn't exist as a simple, self-hosted, no-build tool. Every existing option was either a SaaS with per-domain pricing, an enterprise product with a Kubernetes deployment guide, or a simple uptime check that missed the DNS and mail security story entirely.
 
 ### One session, one build
 
@@ -81,7 +84,7 @@ Five major versions and dozens of point releases later, ASE was a real product.
 The name "The All Seeing Eye" was always a working title — descriptive but slightly sinister, and too specific to the original personal use case. When the project reached a maturity level where it could be genuinely useful to other developers and system administrators, the decision to open-source it was easy.
 
 The reasons:
-- **The tool is useful.** There is a real gap in the market for a zero-dependency, self-hosted infrastructure monitor that covers DNS + SSL + DMARC in a single view.
+- **The tool is useful.** There is a real gap in the market for a no-build, self-hosted infrastructure monitor that covers DNS + SSL + DMARC in a single view.
 - **The bugs are instructive.** Every significant bug uncovered during development — the SHA-256 caching issue, the CSS stacking context trap, the PHP heredoc interpolation limitation — is a lesson that other developers will hit. Documenting them publicly is worth more than keeping them private.
 - **Self-hosted tools deserve to be open.** If you're running this on your own server, you should be able to read every line of code. There are no analytics, no tracking, no phoning home.
 - **AI assistance helped build it.** The collaboration model — a human providing product judgment and domain knowledge, an AI providing implementation speed and debugging breadth — produced something neither could have done as well alone. Making the result open-source felt like the right way to complete that story.
@@ -130,19 +133,19 @@ ASE monitors any list of domains and reports on five signals simultaneously:
 - 11-language i18n system — English · Français · Deutsch · Español · Português · Italiano · Türkçe · Русский · 中文 · 日本語 · हिंदी
 - Language picker in nav: flag emoji + language code, smooth animated dropdown, ARIA-accessible
 - Browser language auto-detection on first visit; preference persisted in `ase-lang` cookie
-- Zero-dependency i18n engine — no library, pure vanilla JS with `data-i18n` attribute convention
+- Library-free i18n engine — no library, pure vanilla JS with `data-i18n` attribute convention
 - `data-i18n-html` for elements containing inline HTML (subtitles with `<strong>`, steps with `<code>`)
 
 **Automation**
-- Auto-refresh every 3 minutes with live countdown
-- Server-side cron via `update-stats.php` for 24/7 monitoring when no browser is open
-- External cron support via `webhook.do` endpoint (works with cron-job.org)
-- Export CSV — timestamped snapshot of all data
+- Auto-refresh every 3 minutes while a tab is open, with live countdown
+- Server-side cron via `update-stats.php` for monitoring when no browser is open (CLI cron, or HTTP with a secret token)
+- Export CSV and Export JSON of the current view
+- Keyboard shortcuts: `/` search, `r` refresh, `a` add domain, `?` help, `Esc` close
 
 **Persistence**
-- Cross-device uptime history via `uptime.json` (all devices share one record)
-- Server-side config persistence via `ase_config.json`
-- PIN, theme, and notification settings survive across browsers and incognito
+- Cumulative uptime history in `uptime.json` (checks, successes, first-seen, last-down)
+- Settings in `ase_config.json` (theme, domains, notification config), served only to a signed-in session
+- Read-only public demo mode (`demo.flag`) for showcases
 
 **Notifications**
 - Email alerts via Resend API (free tier: 100 emails/day)
@@ -153,11 +156,48 @@ ASE monitors any list of domains and reports on five signals simultaneously:
 - Server-side rate limiting: 10 emails per hour
 
 **Security**
-- PIN protection (SHA-256 hashed, never plaintext)
-- Three-tier PIN persistence: server `ase_config.json` > browser cookie > hardcoded hash
-- `.htaccess` blocks direct access to sensitive files
-- `notify_secret.key` protected with `chmod 0600`
-- All email HTML is `htmlspecialchars()` sanitised
+- Server-side PIN verification (bcrypt), signed HttpOnly SameSite=Strict session cookie, CSRF header on writes
+- Login throttling: 5 failures / 15 min per IP and 30 / hour install-wide
+- API key encrypted at rest (AES-256-GCM) with a random server-side secret; never sent back to the browser
+- `.htaccess` blocks direct access to secrets and state files, forces HTTPS
+- A 6-digit PIN is a convenience gate, not strong authentication; see [Security Model](#security-model)
+
+---
+
+## Audit Notes (v6.1.0)
+
+Before publishing 6.1.0 the whole project was reviewed: the code was read end to end, the public claims were checked one by one, the server layer was tested with a local PHP server and a real browser, and the new authentication code was reviewed by an independent frontier model (OpenAI GPT-6.1 Sol Pro via OpenRouter). This section lists what that found. It is deliberately blunt.
+
+### Bugs that existed in earlier releases
+
+| Finding | Impact | Status |
+|---|---|---|
+| `update-stats.php` had a PHP parse error since v1.0 (`*/10` inside the file's own docblock closed the comment), plus escaped `\$` variables and `$domain…` read as one variable name | The server cron script **never ran**. "24/7 monitoring" and cron alerts did not work in any earlier release | Fixed and run locally end to end |
+| `webhook.do` only works inside a real browser (it loads the dashboard in an iframe and runs JavaScript) | Pointing cron-job.org or UptimeRobot at it recorded nothing: those services do not execute JavaScript | Removed. Use `update-stats.php` instead |
+| SSL expiry dates for the top-100 list were hardcoded snapshots from spring 2026 and the real TLS check was skipped for them | The demo showed `EXPIRED` for healthy certificates | Snapshots dropped, certificates are fetched live (cached 6 h server-side) |
+| `domains.list` contained 8 duplicates | "100 domains" was really 92 unique | Replaced with 8 other popular domains and de-duplicated on load |
+| Cron token committed to the public repository | Anyone could trigger the cron endpoint | Token removed; it now lives in an untracked `cron_token.key` |
+| `config-write.php`, `notify.php`, `uptime-write.php` accepted any request without authentication, and `config-write.php` returned the PIN hash to anyone | The PIN gate was decorative: the hash (of a 6-digit PIN) could be read and cracked offline in milliseconds, and settings could be overwritten | PIN verified server-side (bcrypt), hash never leaves the server, all write endpoints need a session |
+| DNS record text (TXT/NS/MX) and typed domain names were inserted with `innerHTML` unescaped | Stored XSS through a hostile DNS record | Escaped; domain names validated |
+| `ssl-check.php` allowed any hostname, with `Access-Control-Allow-Origin: *` | Open TLS scanner, reachable internal hosts | Sign-in required, private/reserved addresses refused, connects to the validated IP, rate limited |
+| CSV export did not guard against formula injection | `=cmd` cells in spreadsheet apps | Guarded |
+
+### Claims that were not accurate and have been corrected
+
+| Earlier claim | Reality |
+|---|---|
+| "One HTML file. Zero dependencies." | HTML + CSS + JS + several PHP files. No npm packages and no build step, but the browser contacts Cloudflare DNS-over-HTTPS, Google Fonts, the Google favicon service and (fallback) crt.sh |
+| "Serverless" | The full feature set needs PHP. Without PHP the dashboard still runs in a static mode (no sign-in, no history) |
+| "No cookies" | `ase_sid` (HttpOnly sign-in), `ase-lang`, `ase-theme`, and `ase_uptime` (local uptime fallback) |
+| "Automate with cron-job.org via `webhook.do`" | Never worked. See above |
+| "Uptime" | "UP" means the A record resolves. It is a DNS check, not an HTTP probe |
+| "PIN protection" | In 6.0 and earlier the PIN was checked in the browser. In 6.1 it is checked on the server, but a 6-digit PIN is still a weak secret (see [Security Model](#security-model)) |
+| "Your PIN is the encryption passphrase" (landing page) | The Resend key is encrypted with a random server secret (`notify_secret.key`), not with the PIN |
+| NS / MX / DMARC / SPF of the bundled top-100 list are "live" | They are a snapshot; only A records and SSL are checked live for those rows. Domains you add get the full live scan, and `update-stats.php` checks everything live on the server |
+
+### What the independent review added
+
+The reviewer found, in the first draft of the new auth layer: demo mode derived from the `Host` header (spoofable), a default-PIN session with full access on a fresh install, a race that could revive old sessions after a PIN change, non-atomic and fail-open rate limiting, logout that did not revoke sessions, and plain-HTTP cookies. All were fixed before release: demo mode is now a server-side `demo.flag` file, a default-PIN session can only set a new PIN, config writes are serialised under a lock, attempts are reserved atomically and fail closed, logout rotates a session epoch, and `.htaccess` forces HTTPS.
 
 ---
 
@@ -827,91 +867,15 @@ By using `flex-shrink: 0` on the header and footer, they become non-scrollable a
 
 ### PIN Persistence — Three Tiers
 
-#### The challenge: cross-device PIN without a database
+> **Superseded in v6.1.0.** Earlier releases verified the PIN in the browser and kept its SHA-256 hash in `ase_config.json`, a JavaScript-readable cookie and `index.html`. That design could not protect anything: `config-write.php` handed the hash to any visitor, and a 6-digit PIN falls to an offline brute force instantly. It was replaced by server-side verification (`auth.php`), bcrypt storage and a signed HttpOnly session cookie. The history below (cookies, HTTP PUT attempts, timing bugs) is kept because the lessons still apply, but none of it is in the current code.
 
-The PIN hash needs to survive:
-- Switching browsers on the same device
-- Incognito/private browsing sessions
-- Visiting from a different device
-- Clearing browser data
+#### The challenge that started it: cross-device PIN without a database
 
-But ASE has no database. Everything runs from a directory of flat files. The solution is a three-tier persistence system:
-
-| Tier | Storage | Scope | Survives incognito? | Survives device switch? |
-|------|---------|-------|---------------------|-------------------------|
-| 1 | `ase_config.json` (server) | All devices, all browsers | ✅ Yes | ✅ Yes |
-| 2 | `ase_pin` cookie (browser) | Current browser only | ❌ No | ❌ No |
-| 3 | `PIN_HASH` in `index.html` | Deployment default | ✅ Yes (but manual) | ✅ Yes (but manual) |
-
-On every page load, `loadConfig()` runs before the PIN overlay is interactive and applies the stored hash:
-
-```javascript
-async function loadConfig() {
-    // Tier 2: cookie (instant, no network)
-    var cookieHash = _readPinCookie();
-    if (cookieHash) PIN_HASH = cookieHash;
-    
-    // Tier 1: server config (authoritative, works across devices)
-    try {
-        var res = await fetch('./config-write.php', { cache: 'no-cache' });
-        if (res.ok) {
-            var cfg = await res.json();
-            if (cfg.pin_hash && /^[a-f0-9]{64}$/.test(cfg.pin_hash)) {
-                PIN_HASH = cfg.pin_hash;
-                _writePinCookie(cfg.pin_hash); // keep cookie in sync
-            }
-        }
-    } catch(e) {
-        // config-write.php unavailable — cookie (or hardcoded) value stands
-    }
-}
-```
-
-When a PIN is changed, both Tier 1 and Tier 2 are updated simultaneously:
-
-```javascript
-async function saveNewPin(newHash) {
-    _writePinCookie(newHash);                    // Tier 2: immediate
-    await saveConfig({ pin_hash: newHash });      // Tier 1: server (async)
-}
-```
+The PIN has to survive switching browsers, incognito sessions and device changes, and ASE has no database. The 6.1 answer is the same flat-file idea with the right trust boundary: the hash lives only in `ase_config.json` on the server, and the browser only ever holds an opaque signed session cookie.
 
 #### Why HTTP PUT to index.html never worked
 
-An earlier approach tried to write the PIN hash directly into `index.html` by using HTTP PUT:
-
-```javascript
-// DOESN'T WORK — HTTP PUT to a PHP/Apache-served HTML file
-await fetch('./index.html', {
-    method: 'PUT',
-    body: newIndexHtml
-});
-```
-
-This returns a 405 Method Not Allowed on virtually all shared hosting. Apache does not enable WebDAV by default, and even on servers where `mod_dav` is installed, it requires explicit configuration to allow PUT requests to specific paths. Writing to `index.html` this way is essentially never possible on standard shared hosting setups.
-
-The `ase_config.json` approach — a separate writable JSON file, written by a PHP endpoint — is the reliable alternative.
-
-#### The timing bug: `loadConfig()` before the PIN overlay is interactive
-
-`loadConfig()` is async — it fires a network request and waits for the response. The PIN overlay needs to be displayed before this async operation completes, so the user isn't staring at a blank screen while the config loads.
-
-The bootstrap sequence handles this:
-
-```javascript
-// In index.html — called by the PIN overlay's own onload
-async function initApp() {
-    await loadConfig();       // fetch config + uptime in parallel
-    showPinOverlay();         // now show PIN with correct hash loaded
-    await loadDomainList();   // fetch domains.list
-    renderTable();            // empty table with loading indicators
-    await checkAll();         // fire all DNS checks
-}
-```
-
-The key constraint: `PIN_HASH` must be set *before* the PIN overlay accepts input. If the user entered a PIN before `loadConfig()` finished, they'd be verified against the hardcoded default hash rather than the server-stored hash, and the check would fail.
-
----
+Shared hosts do not accept PUT to static files, so any approach that tried to write the PIN into `index.html` silently failed. That is why a PHP endpoint writes the config.
 
 ### Mobile PIN UX — Four Bugs
 
@@ -1644,25 +1608,21 @@ GPL was considered (requires derivative works to also be open-source) but reject
 
 ## File-by-File Reference
 
-| File | Size | Purpose |
-|------|------|---------|
-| `index.html` | ~39 KB | The application shell — HTML structure, PIN overlay, all modals, loads `app.css` and `app.js` |
-| `app.css` | ~41 KB | All styles — design tokens, light/dark theme, responsive layout, animations, badge colours |
-| `app.js` | ~82 KB | All JavaScript — SHA-256, PIN gate, DNS checks, table rendering, notifications, uptime, export |
-| `domains.list` | ~2 KB | Watchlist — one bare domain per line, `#` for comments |
-| `domains.stats` | ~8 KB | CSV snapshot — updated after every check cycle (last-checked timestamp + all domain data) |
-| `domains.json` | ~5 KB | SSL expiry seed — written by `update-stats.php`, read by browser on load to pre-populate SSL data |
-| `ssl-check.php` | ~6 KB | SSL certificate checker — `stream_socket_client` + `openssl_x509_parse`, batch mode |
-| `config-write.php` | ~12 KB | Config persistence — reads/writes `ase_config.json` with atomic temp-file rename |
-| `uptime-write.php` | ~7 KB | Uptime accumulation — reads/writes `uptime.json`, delta merge, atomic write |
-| `notify.php` | ~25 KB | Email sender — AES-256-GCM decrypt, rate limiting, digest HTML builder, Resend API call |
-| `update-stats.php` | ~26 KB | Server cron — DNS + SSL checks, writes `domains.stats` + `domains.json`, calls `notify.php` |
-| `ase_config.json` | ~1 KB | Auto-created settings — PIN hash, theme, notification config, cooldown timestamps |
-| `uptime.json` | ~8 KB | Server-side uptime history — shared across all devices |
-| `notify_secret.key` | ~65 B | AES decryption secret — `chmod 0600`, never leave server |
-| `notify_rate.json` | ~0.2 KB | Rate limit sliding window — array of send timestamps from last hour |
-| `.htaccess` | ~1 KB | Apache config — no-cache headers, webhook routing, file access protection |
-| `webhook.do` | ~1 KB | Headless cron endpoint — loads `index.html` in iframe, triggers checks via `#webhook` hash |
+| File | Purpose |
+|------|---------|
+| `index.html` | Application shell: PIN pad, dashboard, modals. Sets demo-mode styling before first paint |
+| `app.css` / `app.js` | All styles and all client logic (sign-in flow, DNS checks, table, notifications, uptime, export, shortcuts) |
+| `landing.html` + `i18n.js` | Marketing site (served as `index.html` on ase.so) and its 11-language strings |
+| `auth.php` | Server-side sign-in, sign-out, set/change PIN. Rate limited. CLI: `php auth.php set-pin 482915` |
+| `_ase.php` | Shared helpers: sessions, rate limiter, cron token, demo flag, SSRF guard. Not reachable over HTTP |
+| `config-write.php` | Settings read/write (signed-in only; never returns the PIN hash or API-key ciphertext) |
+| `uptime-write.php` | Cumulative uptime history (signed-in or cron token) |
+| `ssl-check.php` | Real TLS handshake, batch mode, 6 h cache, sign-in required, public addresses only |
+| `notify.php` | Email digests via Resend; AES-256-GCM key decrypt; 10 emails/hour limit |
+| `update-stats.php` | The scheduled worker: DNS + SSL checks, writes `domains.stats`, `domains.json`, `uptime.json`, sends alerts. CLI or token |
+| `domains.list` | Watchlist, one domain per line |
+| `.htaccess` | HTTPS, method filter, security headers, blocks secrets and state files (Apache 2.2 and 2.4) |
+| Runtime files (created, never committed) | `ase_config.json`, `auth_secret.key`, `auth_rate.json`, `notify_secret.key`, `notify_rate.json`, `cron_token.key` (you create it), `uptime.json`, `ssl_cache.json`, `domains.stats`, `domains.json`, `demo.flag` (demo only) |
 
 ### index.html
 
@@ -1671,7 +1631,7 @@ The HTML shell contains:
 - Link to `app.css`
 - The PIN overlay (`.pin-overlay`) with numpad
 - The main dashboard (header, stat cards, table)
-- All modal overlays (Add Domain, Help, Change PIN, Notifications, Webhook info)
+- All modal overlays (Add Domain, Help, Change PIN, Notifications, Scheduled checks)
 - Script tag loading `app.js` at end of body
 - Inline bootstrap: `loadConfig().then(() => { ... initDashboard ... })`
 
@@ -1681,9 +1641,9 @@ The HTML intentionally uses inline `onclick` attributes rather than `addEventLis
 
 Organised into 12 numbered sections with large banner comments:
 
-1. **SHA-256** — stateless implementation for PIN hashing
-2. **Server-side config** — `loadConfig()`, `saveConfig()`, cookie helpers
-3. **PIN gate** — `pinDigit()`, `pinCheck()`, `pinUpdateDots()`, keyboard handler
+1. **(removed)** — the browser-side SHA-256 is gone; PINs are verified by `auth.php`
+2. **Server state** — `loadConfig()`, `saveConfig()`, `aseFetch()` (CSRF header, expired-session handling)
+3. **PIN gate** — `pinDigit()`, `pinCheck()` (calls `auth.php`), `pinUpdateDots()`, keyboard handler
 4. **Theme switch** — light/dark toggle with server persistence
 5. **Domain data** — `BUILTIN` array (top 100), `TOOLTIPS` map
 6. **Live state** — `DOMAINS[]`, `domainState{}`, `pendingQueue[]`, rate limiter vars
@@ -1696,8 +1656,8 @@ Organised into 12 numbered sections with large banner comments:
 13. **Domains.list loader** — `loadDomainList()`
 14. **Add domain modal** — `openAddModal()`, `confirmAddDomains()`
 15. **Notifications** — `sendHealthReport()`, `notifyDowntime()`, cooldown system
-16. **Export/stats** — `exportCSV()`, `saveDomainsStats()`
-17. **Webhook mode** — `checkWebhookMode()`, `#webhook` hash detection
+16. **Export** — `exportCSV()`, `exportJSON()`
+17. **(removed)** — the browser-based webhook mode; scheduling is done by `update-stats.php`
 18. **Bootstrap** — `initDashboard()`, startup sequence
 
 ### app.css
@@ -1726,159 +1686,68 @@ The single `data-theme` attribute on `<html>` controls the entire theme. All com
 
 ### Requirements
 
-- Any web server that serves static files (Apache, Nginx, LiteSpeed, Caddy)
-- PHP 7.2+ for optional server features (SSL checking, config persistence, notifications, cron)
-- Apache with `.htaccess` support for webhook routing (most shared hosts)
-- Write permissions on the upload directory for PHP file creation
+- An Apache host with PHP 7.4+ (SiteGround, cPanel and most shared hosts qualify). `.htaccess` support is needed for the file protection and HTTPS redirect
+- Write permission in the install directory (ASE creates its own state files)
+- Optional: a [Resend](https://resend.com) API key for email alerts
 
-**Minimum (browser-only, no PHP):** Just `index.html`, `app.css`, `app.js`, and `domains.list`. DNS checks, progressive scanning, and most UI features work without any backend.
+Without PHP the dashboard still opens in a **static mode**: live DNS checks and the table work, but there is no sign-in, saved history, SSL handshake or alerting.
 
-### Step 1 — Clone or download
+### Step 1 — Download
 
 ```bash
 git clone https://github.com/paulfxyz/ase.git
-cd ase
 ```
 
-Or download the latest ZIP from [GitHub Releases](https://github.com/paulfxyz/ase/releases).
+Or download the ZIP from [GitHub Releases](https://github.com/paulfxyz/ase/releases).
 
-### Step 2 — Upload to your server
+### Step 2 — Upload
 
-These three files are required in the same directory:
-```
-index.html
-app.css
-app.js
-domains.list
-```
+Upload the contents of the repository (except `landing.html`, `i18n.js`, `avatar.jpg` and the docs, which belong to the marketing site) to a directory on your host. Keep `.htaccess`. If you do not use Apache, replicate its rules: deny access to `ase_config.json`, `*.key`, `auth_rate.json`, `notify_rate.json`, `ssl_cache.json`, `uptime.json`, `cron_notify_sent.json`, `.ase_config.lock` and `_ase.php`.
 
-Optional but recommended:
-```
-ssl-check.php
-config-write.php
-uptime-write.php
-notify.php
-update-stats.php
-webhook.do
-.htaccess
-```
+### Step 3 — Choose your PIN
 
-Example directory structure on SiteGround:
-```
-/public_html/uptime/
-├── index.html
-├── app.css
-├── app.js
-├── domains.list
-├── ssl-check.php
-├── config-write.php
-├── uptime-write.php
-├── notify.php
-├── update-stats.php
-├── .htaccess
-└── webhook.do
-```
+Option 1 (recommended): from a shell on the server
 
-Dashboard accessible at: `https://yourdomain.com/uptime/`
-
-Default file permissions (644) are fine for everything. No `chmod 777` needed.
-
-### Step 3 — Configure your domain list
-
-Edit `domains.list` — one bare domain per line:
-```
-# My production sites
-yourdomain.com
-app.yourdomain.com
-api.yourdomain.com
-
-# Competitor/benchmark monitoring
-github.com
-notion.so
-```
-
-Lines starting with `#` are comments and are ignored. Do not include `https://` prefixes or trailing slashes. Subdomains work the same as apex domains.
-
-You can also add domains live via the **+ Add Domain** button in the dashboard. Live-added domains persist in `ase_config.json` (if `config-write.php` is available) or for the session only (if not).
-
-### Step 4 — Change the default PIN
-
-Default PIN: `123456`. **Change it before exposing the dashboard publicly.**
-
-**Recommended method (via dashboard):**
-
-1. Log in with PIN `123456`
-2. Click **More ⋮** → **Change PIN**
-3. Enter current PIN, then new PIN twice
-
-The new hash saves to `ase_config.json` and the browser cookie simultaneously.
-
-**Manual method (before first deployment):**
-
-Compute the SHA-256 hash of your desired PIN:
-```javascript
-// In your browser console (F12)
-const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('yourPIN'));
-console.log([...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''));
-```
-
-Open `index.html` and replace the hash:
-```javascript
-// Find this line and replace the hash value
-var PIN_HASH = '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
-//             ↑ this is the SHA-256 of "123456"
-```
-
-Re-upload `index.html`.
-
-### Step 5 — Set up automated monitoring (optional)
-
-The dashboard auto-refreshes every 3 minutes when open in a browser. For 24/7 monitoring when no browser is open, configure a cron job.
-
-#### Option A: cPanel cron (recommended for shared hosting)
-
-1. Log in to cPanel → **Advanced** → **Cron Jobs**
-2. Schedule: **Every 10 Minutes** (`*/10 * * * *`)
-3. Command:
 ```bash
-php /home/YOURUSER/public_html/uptime/update-stats.php >> /home/YOURUSER/public_html/uptime/cron.log 2>&1
+php auth.php set-pin 482915      # any 6 digits except 123456 or 111111-style repeats
 ```
 
-Replace `YOURUSER` with your cPanel username and adjust the path.
+Option 2: open the site, sign in with the factory PIN `123456`, and ASE immediately asks for your own. Until you do, that session can do nothing else. On a freshly uploaded, publicly reachable site, do this straight away (or use option 1), because anyone who knows the default PIN could otherwise claim the install.
 
-Verify after 10 minutes by checking `cron.log` in File Manager:
+Forgotten PIN: delete `ase_config.json` over FTP (this also resets your saved settings), or run the CLI command above.
+Locked out by the rate limiter: delete `auth_rate.json`.
+
+### Step 4 — Your domains
+
+Edit `domains.list`, one domain per line, `#` for comments. You can also add domains from the dashboard.
+
+### Step 5 — Scheduled checks (optional but recommended)
+
+A browser tab only checks while it is open. For round-the-clock history and alert emails, run `update-stats.php` on a schedule. It performs the same DNS, SSL and mail-policy checks, accumulates `uptime.json`, writes `domains.stats` and `domains.json`, and sends the alert digest if notifications are configured.
+
+#### Option A: server cron (best; no token needed)
+
+cPanel / SiteGround: Site Tools, Devops, Cron Jobs, command:
+
 ```
-👁  ASE — update-stats.php v1.0
-   Started: 2026-03-22T00:30:00Z
-────────────────────────────────────────────────────────────
-  [1/30] Checking ase.so…
-         → UP | 28ms | NS=SiteGround | MX=ProtonMail
-  ...
-✓  Checked 30 domains: 30 UP, 0 DOWN
-✓  domains.stats written (30 rows)
-✓  Done in 3.42s
-```
-
-#### Option B: cron-job.org (free external cron, works on static hosts)
-
-Add this to `.htaccess`:
-```apache
-RewriteEngine On
-RewriteRule ^webhook\.do$ webhook.do [L,T=text/html]
-
-<Files "update-stats.php">
-    Require all denied
-</Files>
+php /home/USER/public_html/PATH/update-stats.php >/dev/null 2>&1
 ```
 
-Then at [cron-job.org](https://cron-job.org):
-1. Create free account
-2. Create cron job: URL = `https://yourdomain.com/uptime/webhook.do`, every 10 minutes
-3. Verify: cron-job.org history should show HTTP 200
+Every 10 minutes is plenty. SSL certificates are cached for 6 hours.
+
+#### Option B: external scheduler over HTTP (cron-job.org, GitHub Actions, UptimeRobot)
+
+1. Create `cron_token.key` in the install directory containing a random string of 24+ characters (e.g. `openssl rand -hex 24`).
+2. Call `https://yourdomain.com/update-stats.php` with the header `X-ASE-Token: <that string>`. A `?token=` query parameter also works but ends up in access logs, so prefer the header.
+3. Without `cron_token.key` the HTTP route is closed (403). The token is never stored in the repository.
 
 ### Step 6 — Open the dashboard
 
-Visit `https://yourdomain.com/uptime/` in your browser. Enter the PIN. ASE begins scanning immediately.
+Visit your site, sign in, and you are done. Use **More → Scheduled checks** in the app for these same instructions.
+
+### Public demo mode
+
+Create an empty file named `demo.flag` next to `index.html` and the install becomes a read-only showcase: no sign-in, all write endpoints return 403, `ssl-check.php` only answers for domains on the watchlist, uptime is recorded by your server cron only. This is how [ase.live](https://ase.live) runs. Demo mode is decided by the file, not the hostname, so it cannot be switched on by a spoofed `Host` header.
 
 ---
 
@@ -1966,53 +1835,51 @@ The raw API key never appears on disk. `notify_secret.key` is `chmod 0600` and b
 
 ## Security Model
 
-### What ASE protects
+ASE is a single-user dashboard for a small number of domains. It is built to be reasonably safe when exposed to the internet, but its only credential is a 6-digit PIN, and you should treat it accordingly.
+
+### What ASE does
 
 | Threat | Protection |
 |--------|------------|
-| Unauthorised dashboard access | SHA-256 PIN, 3-tier persistent hash |
-| API key exposure from file access | AES-256-GCM encryption, plaintext never on disk |
-| Direct PHP script access | `.htaccess` `Require all denied` for sensitive files |
-| `notify_secret.key` exposure | `chmod 0600` + `.htaccess` block |
-| Email HTML injection | All user inputs passed through `htmlspecialchars()` |
-| DoH query flooding | Batch limiting, `_checkRunning` flag, min gap enforcement |
-| Email flooding | Rate limit: 10 emails/hour, 24h auto cooldown, 5min manual cooldown |
-| Cron endpoint abuse | webhook.do returns no sensitive data; just triggers JS checks |
+| Reading or overwriting settings without signing in | Every write endpoint requires a valid session; `config-write.php` returns only the theme to signed-out visitors |
+| PIN hash leaking to the browser | The hash (bcrypt) never leaves the server |
+| Guessing the PIN | 5 failures / 15 min per IP and 30 / hour install-wide, reserved before the PIN is checked, fail-closed if the limiter file is unusable, 0.6 s delay per failure |
+| Stolen / copied session | Cookie is HMAC-signed, HttpOnly, SameSite=Strict (Secure on HTTPS); changing the PIN or signing out rotates a server-side epoch that invalidates every issued cookie |
+| Cross-site request forgery | State-changing calls need a custom `X-ASE: 1` header, which browsers cannot send cross-origin without a CORS preflight (ASE never grants one) |
+| Fresh install with the public default PIN | A default-PIN session can do exactly one thing: set a new PIN |
+| Race between a PIN change and a settings write | Config read-modify-write is serialised under a lock file |
+| API key exposure from a leaked config | AES-256-GCM with a random secret in `notify_secret.key` (0600). Ciphertext is never sent to the browser. If an attacker can read your whole install directory they get both, which is unavoidable on flat-file hosting |
+| Direct access to secrets and state files | `.htaccess` denies them (Apache 2.2 and 2.4 syntax) |
+| SSRF through `ssl-check.php` | Sign-in required, hostname syntax check, every resolved address must be public, the connection goes to the validated IP, per-IP rate limit and time budget |
+| XSS through hostile DNS records or domain names | Output escaped, domain names validated on input and load |
+| Spoofed demo mode | Demo is a server-side file flag, not a header |
+| Email flooding | 10 emails/hour, 24 h auto cooldown, 5 min manual cooldown |
 
-### What ASE doesn't protect
+### What ASE does not do
 
-- **Physical server access** — if an attacker has server filesystem access, `notify_secret.key` is only `chmod 0600`, which means the process owner (usually the web server user) can read it. Full server compromise = full key compromise. This is unavoidable without a hardware security module.
-- **TLS interception** — DNS-over-HTTPS provides DNS query privacy, but the dashboard's own HTTP traffic (to `config-write.php`, `notify.php`) depends on the HTTPS cert of your server.
-- **PIN brute force** — the PIN gate is client-side JavaScript. ASE has no account lockout. If someone hosts their dashboard publicly without HTTP Basic Auth, a determined attacker could automate PIN guesses. **Add HTTP Basic Auth in `.htaccess` for public deployments.**
-- **Multi-user access control** — ASE is a single-user tool. There's one PIN, one config, one notification address.
+- **Strong authentication.** A 6-digit PIN has about 20 bits of entropy; bcrypt does not change that. Rate limiting makes online guessing slow (about 480 tries a day per IP, 720 install-wide), not impossible for a patient, distributed attacker. For anything sensitive, add HTTP Basic Auth or an IP allow-list at the web server (snippet below).
+- **Lockout resistance.** The install-wide cap means someone can deliberately burn the budget and temporarily block your sign-in. Delete `auth_rate.json` to reset it, or sign in from an existing session.
+- **Protect against a compromised server.** Anyone with filesystem access reads everything.
+- **Multi-user access control.** One PIN, one config, one notification address.
+- **HTTP-level uptime.** "UP" means the A record resolves.
+- **Hide your watchlist.** `domains.list`, `domains.json` and `domains.stats` are served as static files so the dashboard can read them. Do not put secrets in domain names.
+- **Run anywhere.** Behind a reverse proxy, make sure `X-Forwarded-Proto` is set only by your proxy, because it decides whether the session cookie is marked Secure.
 
-### Recommended security additions for public deployments
+### Recommended for public deployments
 
 ```apache
-# In .htaccess — add HTTP Basic Auth over the entire directory
+# .htaccess — HTTP Basic Auth in front of everything (create the file with: htpasswd -c ~/.htpasswd you)
 AuthType Basic
-AuthName "ASE — Access Restricted"
+AuthName "ASE — restricted"
 AuthUserFile /home/YOURUSER/.htpasswd
 Require valid-user
-
-# Block sensitive files
-<FilesMatch "\.(json|log|key|php)$">
-    Require all denied
-</FilesMatch>
-
-# Explicitly allow PHP endpoints that the browser needs
-<Files "config-write.php">
-    Require valid-user
-</Files>
-<Files "uptime-write.php">
-    Require valid-user
-</Files>
 ```
 
-Create the `.htpasswd` file:
-```bash
-htpasswd -c ~/.htpasswd yourusername
-```
+If you use Basic Auth, exempt `update-stats.php` (or use the CLI cron) so the scheduler can reach it.
+
+### Reporting a vulnerability
+
+Open a private security advisory on the GitHub repository.
 
 ---
 
@@ -2173,6 +2040,10 @@ Open a GitHub issue with:
 
 Full history with technical change notes.
 
+### v6.1.0 — 2026-10-29 — Audit release
+
+Bug fixes (the cron script never ran), server-side authentication, corrected claims, read-only demo mode, live SSL data, Export JSON, keyboard shortcuts and server-side storage for added domains. Full detail in [Audit Notes](#audit-notes-v610) and the [CHANGELOG](./CHANGELOG.md).
+
 ### v6.0.0 — 2026-03-28 — Rebrand: Mercury → ASE (The All-Seeing-Eye)
 
 **The monitor returns to its roots.** `mercury-sh` repo renamed to `ase`, `mercury.sh` → `ase.so`, `demo.mercury.sh` → `ase.live`. All files, cookies, JS globals, i18n strings, and docs fully rebranded across 11 languages.
@@ -2222,7 +2093,7 @@ Full history with technical change notes.
 
 ### v5.1.0 — 2026-03-25 — Internationalization: 11 Languages
 
-**Zero-dependency i18n engine.** No framework, no JSON files — a single `i18n.js` module and `data-i18n` attribute convention.
+**Library-free i18n engine.** No framework, no JSON files — a single `i18n.js` module and `data-i18n` attribute convention.
 
 **Changes:**
 - `i18n.js` — 1,100-line translation file, 11 languages × ~70 keys each
@@ -2364,7 +2235,7 @@ Suggestions and contributions welcome. Nothing here is committed — it's a list
 
 - [ ] **DNSSEC validation** — detect whether DNSSEC is enabled and whether the chain validates
 - [ ] **IPv6 (AAAA record)** — show whether the domain has an AAAA record alongside the A record
-- [ ] **HTTP status check** — check the HTTP response code (not just DNS resolution) to detect sites that resolve but return 500 or 404
+- [ ] **HTTP status check** — check the HTTP response code (today "UP" only means the A record resolves) to detect sites that resolve but return 500 or 404
 - [ ] **Ping history graph** — latency over time chart (sparkline expanded to full graph in hover/modal)
 - [ ] **CAA record check** — show Certificate Authority Authorization records (which CAs are allowed to issue certs)
 
@@ -2386,7 +2257,7 @@ Suggestions and contributions welcome. Nothing here is committed — it's a list
 
 ### Won't do
 
-- **npm/node.js build pipeline** — violates the zero-dependency philosophy
+- **npm/node.js build pipeline** — ASE stays buildless on purpose
 - **Database requirement** — ASE will always work on flat-file hosting
 - **Docker/Kubernetes deployment guide** — ASE is designed for simple shared hosting
 - **Mobile app** — the web app is mobile-first and works excellently in a mobile browser

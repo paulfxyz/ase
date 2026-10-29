@@ -1579,3 +1579,64 @@
 
     /* Outside-click is handled by document.addEventListener in app.js
        (backdrop div approach removed — caused z-index stacking context conflicts) */
+
+
+/* ═══════════════════════════════════════════════════════════
+   v6.1.0 — DEMO MODE, TOAST, KEYBOARD HINTS
+   Demo mode is enabled by the early inline script in index.html
+   (hostname ase.live only) which adds the `demo` class to <html>.
+═══════════════════════════════════════════════════════════ */
+
+/* Demo: the PIN gate never shows (no flash — class is set before first paint) */
+html.demo #pin-overlay { display: none !important; }
+/* Demo: hide write-only controls (PIN, notification keys) */
+html.demo .demo-hide { display: none !important; }
+
+.demo-banner {
+  display: none;
+  align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 16px;
+  font-size: 12.5px; line-height: 1.4;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+html.demo .demo-banner { display: flex; }
+.demo-banner a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.demo-banner a:hover { text-decoration: underline; }
+.demo-badge {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--accent); color: #fff;
+}
+
+/* Toast (used for "disabled in demo", shortcut feedback) */
+.ase-toast {
+  position: fixed; left: 50%; bottom: 28px; z-index: 12000;
+  transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
+  max-width: min(92vw, 460px);
+  padding: 10px 16px; border-radius: 10px;
+  font-size: 13px; line-height: 1.4; text-align: center;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.ase-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Footer: version tag + keyboard hints */
+.ver-tag {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px; padding: 1px 6px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+footer kbd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-muted);
+}
+@media (max-width: 720px) { .kbd-hints { display: none; } }

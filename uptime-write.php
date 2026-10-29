@@ -40,9 +40,8 @@
  * @author  Paul Fleury
  */
 
-header('Content-Type: application/json');
-header('Cache-Control: no-store, no-cache, must-revalidate');
-header('X-Content-Type-Options: nosniff');
+require_once __DIR__ . '/_ase.php';
+ase_headers();
 
 define('UPTIME_FILE', __DIR__ . '/uptime.json');
 define('MAX_DOMAINS', 500);
@@ -89,11 +88,14 @@ function isValidDomain($d) {
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
-    echo json_encode(readUptime());
-    exit;
+    /* Public on the read-only demo; a private watchlist everywhere else. */
+    if (!ase_is_demo()) ase_require_auth();
+    ase_out(readUptime() ?: new stdClass());
 }
 
 if ($method === 'POST') {
+    ase_deny_in_demo();
+    if (!ase_cron_ok()) { ase_require_xhr(); ase_require_auth(); }
     $body   = file_get_contents('php://input');
     $posted = json_decode($body, true);
 

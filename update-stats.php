@@ -29,18 +29,20 @@
  * ║  1. Upload this file alongside index.html                    ║
  * ║  2. In cPanel → Cron Jobs, add:                              ║
  * ║       Command: php /home/YOURUSER/public_html/PATH/update-stats.php ║
- * ║       Schedule: every 10 minutes (*/10 * * * *)              ║
+ * ║       Schedule: every 10 minutes (see INSTALL.md)            ║
  * ║  3. That's it. No chmod changes needed.                      ║
  * ║                                                              ║
- * ║  SECURITY                                                    ║
+ * ║  SECURITY (v6.1.0)                                           ║
  * ║  ────────────────────────────────────────────────────────    ║
- * ║  This script is safe to leave web-accessible — it only       ║
- * ║  reads/writes local files and makes DNS queries.             ║
- * ║  It outputs a plain-text log, not sensitive data.            ║
- * ║  If you want to restrict it, add to .htaccess:               ║
- * ║    <Files "update-stats.php">                                ║
- * ║      Require ip YOUR.IP.ADDRESS                              ║
- * ║    </Files>                                                   ║
+ * ║  CLI (cPanel/SiteGround cron):  always allowed.              ║
+ * ║  HTTP (cron-job.org etc.):      needs the secret stored in   ║
+ * ║    cron_token.key (one line, 24+ chars, never in the repo),  ║
+ * ║    sent as header  X-ASE-Token: <token>  or  ?token=<token>. ║
+ * ║    Without that file the HTTP route is disabled.             ║
+ * ║  Prefer the header: query strings end up in access logs.     ║
+ * ║                                                              ║
+ * ║  NOTE: "UP" means the domain's DNS A record resolves. It is  ║
+ * ║  not an HTTP check.                                          ║
  * ╚══════════════════════════════════════════════════════════════╝
  */
 
@@ -53,23 +55,11 @@ define('MAX_DOMAINS',   200);   // safety cap — prevents runaway cron
 define('NOTIFY_PHP',    __DIR__ . '/notify.php');   // email notification endpoint
 define('CONFIG_FILE',   __DIR__ . '/ase_config.json'); // settings (for notification check)
 define('NOTIFY_SENT',   __DIR__ . '/cron_notify_sent.json'); // deduplication tracker
-define('VERSION', '6.0.0');
+define('VERSION', '6.1.0');
 define('UPTIME_FILE',   __DIR__ . '/uptime.json');  // persistent uptime history
 
-// ── Cron token + IP bypass ────────────────────────────────────────
-//
-// SiteGround's SGcaptcha blocks known cron service IPs before PHP runs.
-// Solution: add ?token=SECRET to the cron URL — the unique token prevents
-// the WAF from matching the request against its bot IP reputation list.
-//
-// Set CRON_TOKEN to a secret, then use this URL in cron-job.org:
-//   https://yourdomain.com/update-stats.php?token=bRHONd8LxEg_v7yb0QQceJgFS5o6NdYn
-//
-// Leave empty ('') to allow unauthenticated access.
-define('CRON_TOKEN', 'bRHONd8LxEg_v7yb0QQceJgFS5o6NdYn');
-
-// Known cron-job.org executor IPs (source: api.cron-job.org/executor-nodes.json)
-define('CRON_IPS', ['116.203.129.16','116.203.134.67','23.88.105.37','128.140.8.200','91.99.23.109']);
+require_once __DIR__ . '/_ase.php';
+define('ASE_NOTIFY_INCLUDED', 1);
 
 
 // ── Bootstrap ─────────────────────────────────────────────────
@@ -77,26 +67,23 @@ $startTime = microtime(true);
 $timestamp = gmdate('Y-m-d\TH:i:s\Z');
 $isCLI     = (php_sapi_name() === 'cli');
 
-// ── Token / IP auth check ─────────────────────────────────────────
-// Allow: CLI runs (cPanel cron), whitelisted IPs, or valid token in URL.
+// ── Auth: CLI always; HTTP only with the cron token ───────────────
 if (!$isCLI) {
-    $remoteIP    = $_SERVER['REMOTE_ADDR'] ?? '';
-    $queryToken  = $_GET['token'] ?? '';
-    $validToken  = CRON_TOKEN !== '' && hash_equals(CRON_TOKEN, $queryToken);
-    $validIP     = in_array($remoteIP, CRON_IPS, true);
-
-    if (!$validToken && !$validIP) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Forbidden — provide ?token= or run from whitelisted IP']);
-        exit;
+    if (!ase_cron_ok()) {
+        ase_fail(403, ase_cron_token() === null
+            ? 'HTTP cron is disabled: create cron_token.key (24+ random chars) or run this file via CLI'
+            : 'Forbidden');
     }
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: no-store');
+    @set_time_limit(280);
 }
 
 
 // Output helpers
 function log_line(string $msg): void {
     global $isCLI;
-    echo $isCLI ? $msg . "\n" : htmlspecialchars($msg) . "<br>\n";
+    echo $msg . "\n";
 }
 
 function csv_escape(string $value): string {
@@ -124,7 +111,7 @@ if (!file_exists(DOMAINS_LIST)) {
 $rawLines = file(DOMAINS_LIST, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 $domains  = array_values(array_filter(
     array_map('trim', $rawLines),
-    function(\$line) { return \$line !== '' && \$line[0] !== '#'; }  // skip comments
+    function($line) { return $line !== '' && $line[0] !== '#'; }  // skip comments
 ));
 
 if (empty($domains)) {
@@ -138,7 +125,14 @@ if (count($domains) > MAX_DOMAINS) {
     $domains = array_slice($domains, 0, MAX_DOMAINS);
 }
 
-log_line("✓  Loaded " . count($domains) . " domains from domains.list");
+// Domains added from the dashboard live in ase_config.json
+$cfgForDomains = ase_config();
+foreach (($cfgForDomains['custom_domains'] ?? []) as $extra) {
+    $extra = strtolower(trim((string)$extra));
+    if ($extra !== '' && !in_array($extra, $domains, true)) { $domains[] = $extra; }
+}
+
+log_line("✓  Loaded " . count($domains) . " domains (domains.list + dashboard)");
 log_line('');
 
 
@@ -313,7 +307,7 @@ $alertCount  = 0;
 
 foreach ($domains as $rank => $domain) {
     $rank1 = $rank + 1;
-    log_line("  [{$rank1}/" . count($domains) . "] Checking $domain…");
+    log_line("  [{$rank1}/" . count($domains) . "] Checking {$domain}…");
 
     $t0 = microtime(true);
 
@@ -699,58 +693,30 @@ function cron_mark_sent(string $domain, string $type, array &$sent): void {
     // Persist updated sent timestamps before sending (prevents double-send if notify.php errors)
     file_put_contents(NOTIFY_SENT, json_encode($sent));
 
-    // POST to notify.php (same-server call using file path, not HTTP)
-    // We include notify.php directly to avoid HTTP overhead and auth issues
     $totalDomains = count($results);
-    $domainsDown  = count(array_filter(\$results, function(\$r) { return \$r['status'] === 'DOWN'; }));
+    $domainsDown  = count(array_filter($results, function($r) { return $r['status'] === 'DOWN'; }));
 
-    // Use HTTP to notify.php (self-request) — keeps the logic in one place
-    // and avoids duplicating the Resend/encryption logic here
+    // Call notify.php in-process (same code path for HTTP and CLI cron).
+    // Its output is captured so it never leaks into the cron log.
     $payload = json_encode([
         'action'        => 'digest',
         'issues'        => $issues,
         'total_domains' => $totalDomains,
         'domains_down'  => $domainsDown,
     ]);
+    require_once NOTIFY_PHP;
+    ob_start();
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+    ase_notify_main($payload);
+    $response = ob_get_clean();
+    $result   = $response ? json_decode($response, true) : null;
 
-    // Determine base URL from SERVER_NAME or config
-    // Falls back to a relative path attempt if SERVER_NAME not available (CLI cron)
-    $baseUrl = '';
-    if (!empty($_SERVER['SERVER_NAME'])) {
-        $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $baseUrl = $scheme . '://' . $_SERVER['SERVER_NAME'];
-        if (!empty($_SERVER['REQUEST_URI'])) {
-            $baseUrl .= rtrim(dirname($_SERVER['REQUEST_URI']), '/');
-        }
-    }
-
-    if ($baseUrl) {
-        $notifyUrl = rtrim($baseUrl, '/') . '/notify.php';
-        $ctx = stream_context_create(['http' => [
-            'method'        => 'POST',
-            'header'        => "Content-Type: application/json
-Content-Length: " . strlen($payload),
-            'content'       => $payload,
-            'timeout'       => 15,
-            'ignore_errors' => true,
-        ]]);
-        $response = @file_get_contents($notifyUrl, false, $ctx);
-        $result   = $response ? json_decode($response, true) : null;
-
-        if ($result && !empty($result['ok'])) {
-            log_line("✓  Notification sent: " . count($issues) . " issue(s) reported via email");
-        } else {
-            $err = ($result && isset($result['error'])) ? $result['error'] : ($response ?? 'no response');
-            log_line("⚠  Notification failed: " . substr((string)$err, 0, 120));
-        }
+    if ($result && !empty($result['ok'])) {
+        log_line("✓  Notification sent: " . count($issues) . " issue(s) reported via email");
     } else {
-        // CLI/cron without SERVER_NAME — include notify.php directly
-        log_line("ℹ  Running via CLI — calling notify.php directly");
-        // Simulate the POST environment
-        $_SERVER['REQUEST_METHOD'] = 'POST';
-        $GLOBALS['_cron_notify_payload'] = $payload;
-        // We can't easily include and capture output, so log and skip
-        log_line("⚠  Notification skipped in CLI mode — set SERVER_NAME in cron command or use HTTP cron");
+        $err = ($result && isset($result['error'])) ? $result['error']
+             : (($result && isset($result['message'])) ? $result['message'] : ($response ?: 'no response'));
+        log_line("⚠  Notification not sent: " . substr((string)$err, 0, 120));
     }
 })();
 
@@ -761,4 +727,4 @@ $elapsed = round(microtime(true) - $startTime, 2);
 log_line('');
 log_line(str_repeat('─', 60));
 log_line("✓  Done in {$elapsed}s");
-log_line("   Next run: set cron to */10 * * * * (every 10 minutes)");
+log_line("   Schedule this file with cron (see INSTALL.md).");

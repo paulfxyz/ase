@@ -11,8 +11,8 @@
 
    ARCHITECTURE
    ─────────────────────────────────────────────────────────────
-   1. SHA-256       — pure-JS hash for PIN verification (no crypto.subtle)
-   2. PIN gate      — 6-digit PIN check via inline onclick attributes
+   1. Config/auth   — loadConfig(), aseFetch() (CSRF header, session expiry)
+   2. PIN gate      — 6-digit PIN pad; the PIN is verified by auth.php (server-side)
    3. Theme switch  — dark/light toggle via checkbox, no storage needed
    4. Domain data   — BUILTIN top-100 list + TOOLTIPS for hover details
    5. Live state    — domainState{} holds up/latency/history per domain
@@ -20,13 +20,12 @@
    7. Render        — renderTable() builds the tbody HTML from DOMAINS[]
    8. Stats         — updateStats() refreshes the 5 header cards
    9. Add domain    — confirmAddDomains() adds + immediately checks new domains
-  10. Export        — exportCSV() / saveDomainsStats() write data files
-  11. Webhook       — checkWebhookMode() detects headless cron invocation
+  10. Export        — exportCSV() / exportJSON() download the current view
+  11. Scheduling    — done by update-stats.php (cron), not by this file
   12. Auto-refresh  — setInterval countdown, triggerRefresh() resets it
 
    KNOWN CHALLENGES SOLVED
    ─────────────────────────────────────────────────────────────
-   • SHA-256 caching bug: function must be stateless (no sha256.h/k cache)
    • onclick vs addEventListener: sandboxed iframes block DOMContentLoaded;
      all interactive elements use inline onclick/oninput/onchange instead
    • PIN double-fire: only 'click' is used (not mousedown+touchstart+click)
@@ -37,88 +36,21 @@
 
 
 /* ────────────────────────────────────────────────────────────────
-   1. SHA-256 — stateless, recomputes primes each call
-   No caching on the function object (that caused wrong hashes on repeat calls)
-   ──────────────────────────────────────────────────────────────── */
-function sha256(ascii) {
-  /* Stateless SHA-256 — recomputes primes each call, no caching bug */
-  function rightRotate(value, amount) {
-    return (value >>> amount) | (value << (32 - amount));
-  }
-  var maxWord = Math.pow(2, 32);
-  var i, j, result = '', words = [];
-  var asciiBitLength = ascii.length * 8;
-  var hash = [], k = [], isComposite = {};
-  for (var candidate = 2; hash.length < 8 || k.length < 64; candidate++) {
-    if (!isComposite[candidate]) {
-      for (i = 0; i < 313; i += candidate) isComposite[i] = candidate;
-      if (hash.length < 8)  hash.push((Math.pow(candidate, .5)   * maxWord) | 0);
-      if (k.length   < 64) k.push(   (Math.pow(candidate, 1/3) * maxWord) | 0);
-    }
-  }
-  ascii += '\x80';
-  while (ascii.length % 64 !== 56) ascii += '\x00';
-  for (i = 0; i < ascii.length; i++) {
-    j = ascii.charCodeAt(i);
-    words[i >> 2] |= j << ((3 - i % 4) * 8);
-  }
-  words.push(0, asciiBitLength);
-  for (j = 0; j < words.length;) {
-    var w = words.slice(j, j += 16);
-    var oldHash = hash.slice(0);
-    for (i = 0; i < 64; i++) {
-      var w15 = w[i - 15], w2 = w[i - 2];
-      var a = oldHash[0], e = oldHash[4];
-      var temp1 = oldHash[7]
-        + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
-        + ((e & oldHash[5]) ^ (~e & oldHash[6]))
-        + k[i]
-        + (w[i] = i < 16 ? w[i] : (
-            w[i-16]
-            + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3))
-            + w[i-7]
-            + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))
-          ) | 0);
-      var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
-        + ((a & oldHash[1]) ^ (a & oldHash[2]) ^ (oldHash[1] & oldHash[2]));
-      oldHash = [temp1 + temp2 | 0, a, oldHash[1], oldHash[2],
-                 oldHash[3] + temp1 | 0, e, oldHash[5], oldHash[6]];
-    }
-    for (i = 0; i < 8; i++) hash[i] = hash[i] + oldHash[i] | 0;
-  }
-  for (i = 0; i < 8; i++) {
-    for (j = 3; j + 1; j--) {
-      var b = (hash[i] >> (j * 8)) & 255;
-      result += ((b < 16) ? '0' : '') + b.toString(16);
-    }
-  }
-  return result;
-}
-
-
-/* ────────────────────────────────────────────────────────────────
    1b. SERVER-SIDE CONFIG  (ase_config.json via config-write.php)
    ─────────────────────────────────────────────────────────────────
    Provides persistent, server-side storage for settings that must
    survive across browsers, incognito sessions, and devices.
 
-   Fields stored in ase_config.json:
-     • pin_hash        — SHA-256 of the current PIN (overrides hardcoded value)
+   Fields stored in ase_config.json (served only to a signed-in session):
+     • pin_pw          — bcrypt hash of the PIN (never sent to the browser)
      • theme           — "light" | "dark" default preference
      • custom_domains  — array of user-added domain names
+     • notify_*        — email alert settings (API key encrypted at rest)
 
    Strategy:
-     1. On page load,  loadConfig() fetches ase_config.json (if present).
-        If pin_hash differs from the in-memory default → override PIN_HASH.
-     2. After any PIN change, saveConfig({pin_hash: newHash}) posts to
-        config-write.php — no HTTP PUT to index.html, no fragile file rewrite.
-     3. Cookie fallback: pin_hash is ALSO stored in ase_pin cookie so that
-        even if config-write.php is unavailable, the hash persists for the
-        current browser (but not across browsers/incognito).
-
-   Why not localStorage?
-     localStorage is blocked in sandboxed iframes (Perplexity preview, etc.)
-     Cookies work in all contexts. ase_config.json works across all devices.
+     1. loadConfig() asks auth.php whether the HttpOnly session cookie is valid.
+     2. Signed-out visitors get the theme only; the PIN overlay stays up.
+     3. PIN changes go through auth.php, not config-write.php.
    ──────────────────────────────────────────────────────────────── */
 
 /** In-memory config (merged from ase_config.json + cookie on startup) */
@@ -130,59 +62,109 @@ var _asmConfig = {};
  * Returns a Promise that resolves when config is applied.
  */
 async function loadConfig() {
-  /* 1. Try cookie first (instant, no network) */
-  var cookieHash = _readPinCookie();
-  if (cookieHash) {
-    PIN_HASH = cookieHash;
-  }
-
-  /* 2. Load uptime data from server in parallel with config */
-  var uptimePromise = uptimeLoad();
-
-  /* 3. Try server config (authoritative, works across devices/incognito) */
+  /* 1. Ask the server who we are (signed HttpOnly cookie — invisible to JS) */
+  var auth = { authenticated: false };
+  ASE_BACKEND = false;
   try {
-    var res = await fetch('./config-write.php', { cache: 'no-cache' });
-    if (res.ok) {
-      var cfg = await res.json();
-      _asmConfig = cfg;
-
-      /* Apply PIN hash if present and valid */
-      if (cfg.pin_hash && /^[a-f0-9]{64}$/.test(cfg.pin_hash)) {
-        PIN_HASH = cfg.pin_hash;
-        _writePinCookie(cfg.pin_hash); /* keep cookie in sync */
-      }
-
-      /* Apply theme preference */
-      if (cfg.theme === 'dark' || cfg.theme === 'light') {
-        var cb = document.getElementById('theme-checkbox');
-        document.documentElement.setAttribute('data-theme', cfg.theme);
-        if (cb) cb.checked = (cfg.theme === 'light');
-      }
-
-      /* Apply notification config */
-      applyNotifyConfig(cfg);
-
-      /* Restore notification send timestamps (cooldown persistence) */
-      _notifyLoadState(cfg);
+    var ar = await fetch('./auth.php', { cache: 'no-store' });
+    if (ar.ok && (ar.headers.get('content-type') || '').indexOf('json') >= 0) {
+      auth = await ar.json();
+      ASE_BACKEND = true;
     }
-  } catch(e) {
-    /* config-write.php unavailable (static host, permissions) — silently continue */
+  } catch(e) { /* no PHP backend (static hosting) */ }
+  ASE_AUTHED = !!auth.authenticated;
+  if (auth.demo && !IS_DEMO) {            /* server says demo (demo.flag) */
+    IS_DEMO = true;
+    document.documentElement.classList.add('demo');
   }
 
-  /* Wait for uptime load to complete */
+  /* Legacy cookie from v6.0 and earlier held the PIN hash in script-readable
+     form. It is no longer used — delete it. */
+  document.cookie = 'ase_pin=; max-age=0; path=/; SameSite=Lax';
+
+  /* 2. Settings. Signed-out visitors only get the theme; the demo is public. */
+  var uptimePromise = Promise.resolve();
+  if (ASE_AUTHED || IS_DEMO) uptimePromise = uptimeLoad();
+  if (ASE_BACKEND) {
+    try {
+      var res = await fetch('./config-write.php', { cache: 'no-cache' });
+      if (res.ok) {
+        var cfg = await res.json();
+        _asmConfig = cfg;
+        if (cfg.theme === 'dark' || cfg.theme === 'light') {
+          var cb = document.getElementById('theme-checkbox');
+          document.documentElement.setAttribute('data-theme', cfg.theme);
+          if (cb) cb.checked = (cfg.theme === 'light');
+        }
+        if (ASE_AUTHED) {
+          applyNotifyConfig(cfg);
+          _notifyLoadState(cfg);   /* restore cooldown timestamps */
+        }
+      }
+    } catch(e) { /* keep going with defaults */ }
+  }
   await uptimePromise;
+}
+
+/** Same-origin fetch for state-changing calls: adds the CSRF header and
+    returns to the sign-in screen if the session has expired. */
+async function aseFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'X-ASE': '1' }, opts.headers || {});
+  var res = await fetch(url, opts);
+  if (res.status === 401 && !IS_DEMO) { aseSessionExpired(); }
+  return res;
+}
+function aseSessionExpired() {
+  if (!ASE_AUTHED) return;
+  ASE_AUTHED = false;
+  aseToast('Session expired — please sign in again');
+  setTimeout(function() { location.reload(); }, 1200);
+}
+async function aseSignOut() {
+  try { await aseFetch('./auth.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) }); } catch(e) {}
+  location.reload();
+}
+
+/* ── v6.1.0: version, demo mode, toast ───────────────────────────
+   ASE_DEMO is set by the early inline script in index.html and is true
+   ONLY on the public demo host (ase.live). Self-hosted installs are never
+   affected: they keep the PIN gate and full read/write behaviour.        */
+var ASE_VERSION = '6.1.0';
+var IS_DEMO = (window.ASE_DEMO === true);
+var ASE_BACKEND = false;   /* true when auth.php answers (PHP host) */
+var ASE_AUTHED  = false;   /* true when the server accepted our session cookie */
+
+var _toastTimer = null;
+function aseToast(msg) {
+  var el = document.getElementById('ase-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ase-toast'; el.className = 'ase-toast';
+    el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  void el.offsetWidth;                 /* restart the transition */
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2600);
+}
+function demoBlocked(what) {
+  aseToast(what + ' is disabled in the public demo — self-host ASE to use it (github.com/paulfxyz/ase)');
 }
 
 /**
  * Persist a partial config update to config-write.php.
  * Only the provided fields are updated; others remain unchanged.
  *
- * @param {Object} partial  e.g. { pin_hash: '...' } or { theme: 'dark' }
+ * @param {Object} partial  e.g. { theme: 'dark' }
  * @returns {Promise<boolean>}  true if saved to server
  */
 async function saveConfig(partial) {
+  if (IS_DEMO) return false;           /* demo is read-only: visitors must not change shared config */
   try {
-    var res = await fetch('./config-write.php', {
+    var res = await aseFetch('./config-write.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(partial)
@@ -193,27 +175,12 @@ async function saveConfig(partial) {
   }
 }
 
-/* ── PIN cookie helpers (fallback persistence for PIN hash) ── */
-
-/** Read the ase_pin cookie. Returns the 64-char hash or null. */
-function _readPinCookie() {
-  var m = document.cookie.match(/(?:^|; )ase_pin=([a-f0-9]{64})/);
-  return m ? m[1] : null;
-}
-
-/** Write the ase_pin cookie (1-year expiry, SameSite=Lax). */
-function _writePinCookie(hash) {
-  document.cookie = 'ase_pin=' + hash + '; max-age=31536000; path=/; SameSite=Lax';
-}
-
-
 /* ────────────────────────────────────────────────────────────────
    2. PIN GATE
    PIN "123456" → stored as SHA-256 hash only. Never plaintext.
    Buttons use onclick attributes (set in HTML) — no event listeners.
    Physical keyboard also works via the keydown handler below.
    ──────────────────────────────────────────────────────────────── */
-var PIN_HASH = '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
 var pinBuffer = '';
 
 function pinUpdateDots(mode) {
@@ -241,18 +208,37 @@ function pinDelete() {
   document.getElementById('pin-error').textContent = '';
 }
 
-function pinCheck() {
-  if (sha256(pinBuffer) === PIN_HASH) {
+var _pinBusy = false;
+async function pinCheck() {
+  if (_pinBusy) return;
+  _pinBusy = true;
+  var pin = pinBuffer, ok = false, mustChange = false, msg = 'Incorrect PIN — try again';
+  try {
+    var res = await aseFetch('./auth.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', pin: pin })
+    });
+    var j = await res.json().catch(function() { return {}; });
+    ok = !!(res.ok && j.ok);
+    mustChange = !!j.must_change;
+    if (!ok && j.error && j.error !== 'Incorrect PIN') msg = j.error;
+  } catch(e) { msg = 'Cannot reach the server — try again'; }
+  _pinBusy = false;
+
+  if (ok) {
     var overlay = document.getElementById('pin-overlay');
     overlay.classList.add('unlocking');
-    /* Hide overlay immediately, then start loading data in background */
+    await loadConfig();                 /* now authenticated: settings + uptime history */
+    _asmConfig.pin_default = mustChange;   /* default-PIN sessions may only set a new PIN */
     setTimeout(function() {
       overlay.style.display = 'none';
-      checkFirstUse(); /* check if default PIN — may show set-PIN modal */
+      checkFirstUse();                  /* default PIN still active? → ask for a new one */
     }, 320);
   } else {
     pinUpdateDots('error');
-    document.getElementById('pin-error').textContent = 'Incorrect PIN — try again';
+    document.getElementById('pin-error').textContent = msg;
+    var mi = document.getElementById('pin-mobile-input');
+    if (mi) { mi.value = ''; mi.classList.add('error'); setTimeout(function() { mi.classList.remove('error'); }, 700); }
     setTimeout(function() { pinBuffer = ''; pinUpdateDots('normal'); }, 700);
   }
 }
@@ -268,6 +254,7 @@ document.addEventListener('keydown', function(e) {
 
 /* Keyboard support for the LOGIN PIN entry */
 document.addEventListener('keydown', function(e) {
+  if (IS_DEMO) return;                 /* demo has no PIN gate */
   var overlay = document.getElementById('pin-overlay');
   if (!overlay || overlay.style.display === 'none') return;
   if (e.key >= '0' && e.key <= '9') pinDigit(e.key);
@@ -579,13 +566,13 @@ async function uptimeLoad() {
  */
 async function uptimeSave() {
   /* Server: POST only domains that changed this cycle (delta) */
-  if (Object.keys(_uptimeDelta).length > 0) {
+  if (!IS_DEMO && ASE_AUTHED && Object.keys(_uptimeDelta).length > 0) {
     var deltas = _uptimeDelta;
     _uptimeDelta = {};
     Object.keys(deltas).forEach(async function(domain) {
       var d = deltas[domain];
       try {
-        await fetch('./uptime-write.php', {
+        await aseFetch('./uptime-write.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -771,7 +758,7 @@ function tooltipHTML(domain, col) {
     '<div class="tooltip-box">' +
       '<div class="tt-title">' + TITLES[col] + '</div>' +
       '<div class="tt-row"><span class="tt-label">Record</span>' +
-      '<span class="tt-val">' + (td[col] || '—') + '</span></div>' +
+      '<span class="tt-val">' + escHtml(td[col] || '—') + '</span></div>' +
     '</div>'
   );
 }
@@ -895,8 +882,8 @@ function renderTable() {
       '</div></td>' +
       '<td class="latency ' + latClass(st.latency) + '">' + latStr + '</td>' +
       '<td><div class="ssl-cell"><span class="ssl-days ' + sslClass(days) + '">' + sslStr + '</span>' + leBadge + '</div></td>' +
-      '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + nsBadgeCls(d.ns) + '">'   + d.ns    + '</span>' + tooltipHTML(d.domain,'ns')    + '</div></td>' +
-      '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + mxBadgeCls(d.mxType) + '">'+ d.mxType+ '</span>' + tooltipHTML(d.domain,'mx')    + '</div></td>' +
+      '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + nsBadgeCls(d.ns) + '">'   + escHtml(d.ns)    + '</span>' + tooltipHTML(d.domain,'ns')    + '</div></td>' +
+      '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + mxBadgeCls(d.mxType) + '">'+ escHtml(d.mxType)+ '</span>' + tooltipHTML(d.domain,'mx')    + '</div></td>' +
       '<td class="info-cell"><div class="tooltip-host"><span class="info-badge dmarc-' + d.dmarc + '">'    + dmarcLabel+ '</span>' + tooltipHTML(d.domain,'dmarc')  + '</div></td>' +
       '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + spfCls + '">'           + spfLabel  + '</span>' + tooltipHTML(d.domain,'spf')    + '</div></td>' +
       delCell +
@@ -912,6 +899,7 @@ function renderTable() {
 function deleteDomain(domain) {
   DOMAINS = DOMAINS.filter(function(d) { return d.domain !== domain; });
   delete domainState[domain];
+  persistCustomDomains();
   renderTable();
   updateStats();
 }
@@ -937,9 +925,12 @@ function updateStats() {
   if (!banner) return;
   if (expiring.length) {
     var txt = document.getElementById('alert-text');
-    if (txt) txt.innerHTML = '<strong>SSL expiring soon:</strong> ' +
-      expiring.map(function(d){ return '<strong>'+d.domain+'</strong> ('+daysUntil(d.sslExpiry)+'d)'; }).join(' · ') +
-      ' — These are high-traffic domains; certs auto-renew in production.';
+    expiring.sort(function(a, b) { return daysUntil(a.sslExpiry) - daysUntil(b.sslExpiry); });
+    var shown = expiring.slice(0, 6);
+    if (txt) txt.innerHTML = '<strong>SSL expiring within 30 days:</strong> ' +
+      shown.map(function(d){ return '<strong>'+escHtml(d.domain)+'</strong> ('+daysUntil(d.sslExpiry)+'d)'; }).join(' · ') +
+      (expiring.length > shown.length ? ' · and ' + (expiring.length - shown.length) + ' more' : '') +
+      ' — use “Alerts only” to list them all.';
     banner.style.display = 'flex';
   } else {
     banner.style.display = 'none';
@@ -1544,8 +1535,7 @@ async function checkAll() {
     _manualRefresh = false;
   }
 
-  saveDomainsStats();
-  uptimeSave(); /* persist uptime data to cookie */
+  uptimeSave();
 
   /* Hide the scan progress bar */
   var spw = document.getElementById('scan-progress-wrap');
@@ -1708,12 +1698,14 @@ async function loadDomainList() {
     var text  = await res.text();
     var lines = text.split('\n')
       .map(function(l) { return l.trim(); })
-      .filter(function(l) { return l.length > 0 && l[0] !== '#'; });
+      .filter(function(l) { return l.length > 0 && l[0] !== '#' && isValidHost(l); });
     if (lines.length === 0) throw new Error('empty file');
 
     /* Use BUILTIN data for known domains, create minimal entries for others */
     var builtinMap = {};
     BUILTIN.forEach(function(d) { builtinMap[d.domain] = d; });
+    var _seen = {};
+    lines = lines.filter(function(dm) { var k = dm.toLowerCase(); if (_seen[k]) return false; _seen[k] = 1; return true; });
     DOMAINS = lines.map(function(domain, idx) {
       return builtinMap[domain] || {
         rank: idx + 1, domain: domain, cat: 'custom',
@@ -1726,6 +1718,20 @@ async function loadDomainList() {
     DOMAINS = BUILTIN.slice();
     console.log('[ASE] domains.list unavailable (' + e.message + ') — using built-in top-100');
   }
+
+  /* Domains added in the dashboard earlier (stored server-side, signed-in only) */
+  if (ASE_AUTHED && Array.isArray(_asmConfig.custom_domains)) {
+    _asmConfig.custom_domains.forEach(function(dm) {
+      if (isValidHost(dm) && !DOMAINS.some(function(x) { return x.domain === dm; })) {
+        DOMAINS.push({ rank: 99, domain: dm, cat: 'custom', sslExpiry: null, ns: '—', mxType: '—', dmarc: 'missing', spf: '', custom: true });
+      }
+    });
+  }
+
+  /* SSL dates baked into BUILTIN are only a first-paint placeholder from the
+     day the list was compiled — they go stale and showed EXPIRED. Drop them so
+     the real handshake (ssl-check.php) or domains.json (cron) provides the data. */
+  DOMAINS.forEach(function(d) { if (!d.custom) { d.sslExpiry = null; d.sslIssuer = ''; } });
 
   /* Initialise empty state for all domains, reset SSL check cache */
   _sslChecked = {};
@@ -1761,21 +1767,12 @@ async function loadDomainList() {
   } catch(e) { /* domains.json not available — crt.sh fallback will run */ }
 }
 
-/** Attempt to persist a new domain to domains.list via HTTP PUT */
-async function persistDomainToFile(domain) {
-  try {
-    var res = await fetch('./domains.list', { cache: 'no-cache' });
-    if (!res.ok) return false;
-    var text = await res.text();
-    var NL = String.fromCharCode(10);
-    if (text.split(NL).some(function(l){ return l.trim()===domain; })) return true;
-    var put = await fetch('./domains.list', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain' },
-      body: text.trimEnd() + NL + domain + NL
-    });
-    return put.ok;
-  } catch(e) { return false; }
+/** Save the domains you added in the dashboard to ase_config.json (signed-in only).
+    update-stats.php reads the same list, so scheduled checks cover them too. */
+function persistCustomDomains() {
+  if (IS_DEMO || !ASE_AUTHED) return;
+  var list = DOMAINS.filter(function(d) { return d.custom; }).map(function(d) { return d.domain; });
+  saveConfig({ custom_domains: list });
 }
 
 
@@ -1786,6 +1783,7 @@ async function persistDomainToFile(domain) {
    DNS check fires immediately, table re-renders on completion.
    ──────────────────────────────────────────────────────────────── */
 function openAddModal() {
+  if (IS_DEMO) { demoBlocked('Adding domains'); return; }
   pendingQueue = [];
   var tags = document.getElementById('queued-tags');
   if (tags) tags.innerHTML = '';
@@ -1803,6 +1801,18 @@ function closeAddModal() {
   pendingQueue = [];
 }
 
+/** Escape text for safe use inside innerHTML (DNS records are attacker-controlled). */
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+/** True for a plain hostname with at least one dot (no schemes, paths, quotes, spaces). */
+function isValidHost(h) {
+  return typeof h === 'string' && h.length <= 253 &&
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(h);
+}
+
 /** Parse and clean a domain string typed by the user */
 function parseDomain(raw) {
   return (raw || '').trim()
@@ -1816,7 +1826,7 @@ function queueDomain() {
   var inp = document.getElementById('add-input');
   if (!inp) return;
   var domain = parseDomain(inp.value);
-  if (!domain || domain.indexOf('.') < 0) return;
+  if (!isValidHost(domain)) { aseToast('Not a valid domain name'); return; }
 
   /* Skip if already monitored or already in queue */
   if (DOMAINS.some(function(d){ return d.domain===domain; })) { inp.value=''; return; }
@@ -1870,9 +1880,8 @@ function confirmAddDomains() {
       dmarc: 'missing', spf: '', custom: true
     });
     domainState[item.domain] = { up: null, latency: null, history: [] };
-    /* Try to persist to domains.list — silent failure on static hosts */
-    persistDomainToFile(item.domain);
   });
+  persistCustomDomains();
 
   /* Show domains immediately (status will be "…" until checks complete) */
   renderTable();
@@ -1884,7 +1893,6 @@ function confirmAddDomains() {
   })).then(function() {
     renderTable();
     updateStats();
-    saveDomainsStats();
   });
 }
 
@@ -1893,7 +1901,6 @@ function confirmAddDomains() {
    11. EXPORT & STATS PERSISTENCE
    exportCSV()        — triggers a browser download
    buildStatsCSV()    — builds CSV string with timestamp
-   saveDomainsStats() — PUTs the CSV to domains.stats (server write needed)
    ──────────────────────────────────────────────────────────────── */
 function buildStatsCSV() {
   var now = new Date().toISOString();
@@ -1910,24 +1917,12 @@ function buildStatsCSV() {
       d.ns, d.mxType, d.dmarc, d.spf
     ].map(function(v) {
       var s = String(v);
+      if (/^[=+\-@\t\r]/.test(s) && isNaN(Number(s))) s = "'" + s;   /* CSV formula-injection guard */
       return (s.indexOf(',')>=0||s.indexOf('"')>=0) ? '"'+s.replace(/"/g,'""')+'"' : s;
     }).join(',');
   });
   var NL = String.fromCharCode(10);
   return [headers.join(',')].concat(rows).join(NL);
-}
-
-async function saveDomainsStats() {
-  /* Write CSV snapshot to domains.stats via PUT.
-   * Works on local/Apache/Nginx with write permissions.
-   * On static hosts (Netlify, S3, GitHub Pages) this silently fails — that's OK. */
-  try {
-    var csv = buildStatsCSV();
-    var resp = await fetch('./domains.stats', {
-      method: 'PUT', headers: { 'Content-Type': 'text/csv' }, body: csv
-    });
-    if (resp.ok) console.log('[ASE] domains.stats saved (' + DOMAINS.length + ' domains)');
-  } catch(e) { /* static host — ignore */ }
 }
 
 function exportCSV() {
@@ -1945,35 +1940,11 @@ function exportCSV() {
 
 
 /* ────────────────────────────────────────────────────────────────
-   12. WEBHOOK HANDLER
-   Detects headless/cron invocation via URL path or #webhook hash.
-   When triggered: skips PIN, loads domains.list, checks all,
-   writes domains.stats. Designed to be called by an external
-   cron service (cron-job.org, GitHub Actions, UptimeRobot, etc.)
-   pointing to: https://yourdomain.com/webhook.do
+   12. SCHEDULED CHECKS
+   v6.1.0: the old browser-based "webhook.do" mode is gone. It could only
+   run inside a real browser tab and skipped the PIN. Scheduled checks are
+   done by update-stats.php (CLI cron, or HTTP with a secret token).
    ──────────────────────────────────────────────────────────────── */
-function checkWebhookMode() {
-  var path = window.location.pathname;
-  var hash = window.location.hash;
-  if (!path.endsWith('webhook.do') && hash !== '#webhook') return false;
-
-  console.log('[ASE] Webhook mode — skipping PIN, running headless check');
-  var overlay = document.getElementById('pin-overlay');
-  if (overlay) overlay.style.display = 'none';
-
-  loadDomainList().then(function() {
-    renderTable();
-    return checkAll();
-  }).then(function() {
-    /* Persist uptime data to uptime.json after every webhook-triggered check.
-       This is the key mechanism for accumulating long-term uptime history
-       across all invocation sources — browser, manual refresh, and cron/webhook. */
-    uptimeSave();
-    saveDomainsStats();
-    console.log('[ASE] Webhook complete. ' + DOMAINS.length + ' domains checked. Uptime persisted.');
-  });
-  return true;
-}
 
 /* WEBHOOK + INFO MODALS */
 function openWebhookModal() {
@@ -2021,49 +1992,29 @@ setInterval(function() {
 /* ────────────────────────────────────────────────────────────────
    FIRST-PIN-SETS-PIN FLOW
    ─────────────────────────────────────────────────────────────
-   Challenge: the default PIN (123456) is public knowledge. Anyone
-   who finds the dashboard URL can get in. We want to nudge the user
-   to set a personal PIN immediately on first use.
-
-   How it works:
-   1. pinCheck() detects if the entered PIN matches the default hash.
-   2. If so, instead of going straight to the dashboard, it shows
-      the Set-PIN modal (a second numpad for new PIN + confirm).
-   3. The user enters their new PIN twice — if they match, we:
-      a. Update PIN_HASH in memory (takes effect immediately)
-      b. Attempt to rewrite index.html via HTTP PUT so the change
-         persists across page reloads (works on writable servers)
-      c. Show the new hash + manual instruction if PUT fails
-   4. If the user skips, we proceed to the dashboard normally.
-
-   Security note: the new PIN hash is written to the HTML file in
-   plain sight inside index.html — just like the original. This is
-   a client-side-only protection; anyone with server access can read
-   the file. Suitable for casual access control, not for secrets.
+   Challenge: the default PIN (123456) is public knowledge. After a
+   successful sign-in, auth.php reports whether it is still active; if so
+   the dashboard stays locked behind this modal until a new PIN is saved
+   (bcrypt, server-side). There is no skip.
    ──────────────────────────────────────────────────────────────── */
 
-/* SHA-256 hash of the DEFAULT PIN "123456" — used to detect first-use */
-var DEFAULT_PIN_HASH = '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
 
 var spPhase  = 1;    /* 1 = entering new PIN, 2 = confirming new PIN */
 var spPin1   = '';   /* first entry */
 var spPin2   = '';   /* confirmation entry */
 
-/** Called after correct PIN unlock — check if it was the default */
+/** Called after a correct sign-in — the server tells us if the default PIN is still active */
 function checkFirstUse() {
-  if (PIN_HASH !== DEFAULT_PIN_HASH) {
-    /* Custom PIN set — go straight to dashboard */
+  if (!_asmConfig.pin_default) {
     initDashboard();
     return;
   }
-  /* Default PIN — go to set-PIN modal */
   var overlay = document.getElementById('set-pin-overlay');
   if (overlay) overlay.style.display = 'flex';
   spPhase = 1; spPin1 = ''; spPin2 = '';
   spUpdateDots();
 }
 
-/* PIN_HASH checked after login — see checkFirstUse() */
 
 /** Update the two rows of dots in the Set-PIN modal */
 function spUpdateDots(errorRow) {
@@ -2117,35 +2068,39 @@ function spConfirm() {
     setTimeout(function() { spPin2 = ''; spPhase = 2; spUpdateDots(); }, 700);
     return;
   }
-  /* Match — compute new hash and apply */
-  var newHash = sha256(spPin1);
-  PIN_HASH = newHash;
+  /* Match — the server hashes (bcrypt) and stores it */
   document.getElementById('sp-error').textContent = '';
-
-  /* Persist via config-write.php + cookie (replaces unreliable HTTP PUT) */
-  spPersistHash(newHash).then(function(saved) {
-    var overlay = document.getElementById('set-pin-overlay');
-    if (overlay) overlay.style.display = 'none';
-    /* Show success modal — pass null if server-saved (no manual step needed),
-       or the hash if config-write.php unavailable (static host fallback) */
-    showPinSuccessModal(saved ? null : newHash);
-  });
+  aseFetch('./auth.php', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'set_pin', new: spPin1 })
+  }).then(function(res) { return res.json().catch(function() { return {}; }).then(function(j) { return { ok: res.ok && j.ok, err: j.error }; }); })
+    .catch(function() { return { ok: false, err: 'Cannot reach the server' }; })
+    .then(function(r) {
+      if (!r.ok) {
+        document.getElementById('sp-error').textContent = r.err || 'Could not save the PIN';
+        spUpdateDots(2);
+        setTimeout(function() { spPin1 = ''; spPin2 = ''; spPhase = 1; spUpdateDots(); }, 1400);
+        return;
+      }
+      _asmConfig.pin_default = false;
+      var overlay = document.getElementById('set-pin-overlay');
+      if (overlay) overlay.style.display = 'none';
+      loadConfig().then(showPinSuccessModal);   /* session is now fully authorised */
+    });
 }
 
 /** Skip — proceed with default PIN */
 function spSkip() {
-  var overlay = document.getElementById('set-pin-overlay');
-  if (overlay) overlay.style.display = 'none';
-  initDashboard();
+  /* The default PIN is public knowledge — a new one is required. */
+  document.getElementById('sp-error').textContent = 'Choose a new PIN to continue — 123456 is public';
 }
 
 /**
  * Show a nice success modal after PIN is set.
  * Replaces the jarring browser alert() with an in-UI confirmation.
  *
- * @param {string|null} newHash — the hash if manual update is needed, null if auto-saved
  */
-function showPinSuccessModal(newHash) {
+function showPinSuccessModal() {
   /* Create modal if it doesn't exist */
   var existing = document.getElementById('pin-success-modal');
   if (existing) existing.remove();
@@ -2156,17 +2111,7 @@ function showPinSuccessModal(newHash) {
     'backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;' +
     'animation:card-in 0.25s cubic-bezier(.34,1.56,.64,1)';
 
-  var note = newHash
-    ? '<p style="font-size:var(--text-xs);color:var(--text-muted);background:var(--surface-2);' +
-      'border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);' +
-      'margin-top:var(--space-4);font-family:var(--font-mono);word-break:break-all;line-height:1.6">' +
-      '⚠ To make it permanent, update PIN_HASH in index.html to:<br><strong>' + newHash + '</strong></p>'
-    : '';
-
-  /* Build inner HTML safely — use a temp div approach to avoid quote nesting */
-  var successMsg = newHash
-    ? 'Your new PIN is active. See note below to make it permanent.'
-    : 'Your new PIN has been saved permanently.';
+  var successMsg = 'Your new PIN is saved on the server (bcrypt hash).';
 
   var inner = document.createElement('div');
   inner.style.cssText = 'background:var(--surface);border:1px solid var(--border);' +
@@ -2193,42 +2138,17 @@ function showPinSuccessModal(newHash) {
   btn.textContent = 'Open Dashboard →';
   btn.addEventListener('click', function() {
     document.getElementById('pin-success-modal').remove();
-    initDashboard();
+    if (!_dashStarted) initDashboard();
   });
 
   inner.appendChild(icon);
   inner.appendChild(title);
   inner.appendChild(msg);
-  if (note) {
-    var noteEl = document.createElement('div');
-    noteEl.innerHTML = note;
-    inner.appendChild(noteEl);
-  }
   inner.appendChild(btn);
   modal.appendChild(inner);
 
   document.body.appendChild(modal);
 }
-
-/**
- * Persist a new PIN hash via config-write.php → ase_config.json.
- * Also writes to the ase_pin cookie as an immediate fallback.
- *
- * Replaces the old HTTP PUT approach (which required WebDAV/mod_dav
- * and silently failed on most shared hosts). ase_config.json is
- * written by a same-origin PHP script and works on any PHP host.
- *
- * @param {string} newHash — the new SHA-256 hash to write
- * @returns {Promise<boolean>} true if saved to server
- */
-async function spPersistHash(newHash) {
-  /* Always update the cookie immediately (browser-local fallback) */
-  _writePinCookie(newHash);
-  /* Attempt server-side persistence via config-write.php */
-  return saveConfig({ pin_hash: newHash });
-}
-
-
 
 /* ────────────────────────────────────────────────────────────────
    CHANGE PIN MODAL
@@ -2236,13 +2156,14 @@ async function spPersistHash(newHash) {
      Phase 1: Enter CURRENT PIN (verify it's correct)
      Phase 2: Enter NEW PIN
      Phase 3: Confirm NEW PIN (must match phase 2)
-   On success: updates PIN_HASH in memory, attempts to persist
-   to index.html via HTTP PUT (same as the set-PIN flow).
+   On success: the server stores a new bcrypt hash and re-issues the
+   session cookie (all other sessions are signed out).
    ──────────────────────────────────────────────────────────────── */
 
 var CP_PHASE   = 1;  /* 1=current, 2=new, 3=confirm */
 var cpBuffer   = ''; /* current input buffer */
 var cpNewPin   = ''; /* stored new PIN from phase 2 */
+var cpCurrent  = ''; /* current PIN, verified server-side on submit */
 
 var CP_TITLES = {
   1: 'Change PIN',
@@ -2256,6 +2177,7 @@ var CP_SUBS = {
 };
 
 function openChangePinModal() {
+  if (IS_DEMO) { demoBlocked('Changing the PIN'); return; }
   /* Activate mobile input mode (hides numpad + dots, shows native keyboard input) */
   if (_isTouchDevice) {
     var cpCard  = document.getElementById('cp-card');
@@ -2330,14 +2252,8 @@ function cpDelete() {
 
 function cpCheck() {
   if (CP_PHASE === 1) {
-    /* Verify current PIN */
-    if (sha256(cpBuffer) !== PIN_HASH) {
-      cpUpdateDots('error');
-      document.getElementById('cp-error').textContent = 'Incorrect PIN — try again';
-      setTimeout(function() { cpBuffer = ''; cpUpdateDots(); }, 700);
-      return;
-    }
-    /* Current PIN correct — move to new PIN */
+    /* The server verifies the current PIN when the change is submitted */
+    cpCurrent = cpBuffer;
     CP_PHASE = 2; cpBuffer = '';
     cpUpdateDots(); cpSetTitles();
     /* Clear mobile input for next phase entry */
@@ -2358,14 +2274,19 @@ function cpCheck() {
       setTimeout(function() { cpBuffer = ''; CP_PHASE = 2; cpNewPin = ''; cpUpdateDots(); cpSetTitles(); }, 700);
       return;
     }
-    /* PINs match — apply change */
-    var newHash = sha256(cpNewPin);
-    PIN_HASH = newHash;
-    closeChangePinModal();
-    /* Attempt to persist */
-    spPersistHash(newHash).then(function(saved) {
-      showPinSuccessModal(saved ? null : newHash);
-    });
+    /* PINs match — submit; the server checks the current PIN and stores a bcrypt hash */
+    var newPin = cpNewPin;
+    aseFetch('./auth.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'change_pin', current: cpCurrent, new: newPin })
+    }).then(function(res) { return res.json().catch(function() { return {}; }).then(function(j) { return { ok: res.ok && j.ok, err: j.error }; }); })
+      .catch(function() { return { ok: false, err: 'Cannot reach the server' }; })
+      .then(function(r) {
+        if (r.ok) { closeChangePinModal(); showPinSuccessModal(); return; }
+        document.getElementById('cp-error').textContent = r.err || 'Could not change the PIN';
+        cpUpdateDots('error');
+        setTimeout(function() { cpBuffer = ''; cpNewPin = ''; cpCurrent = ''; CP_PHASE = 1; cpUpdateDots(); cpSetTitles(); _cpClearMobileInput(); }, 1400);
+      });
   }
 }
 
@@ -2427,7 +2348,9 @@ document.addEventListener('click', function(e) {
  * Loads domain list, renders skeleton table immediately, then fires
  * a full DNS+SSL check automatically — no manual Refresh needed.
  */
+var _dashStarted = false;
 async function initDashboard() {
+  _dashStarted = true;
   await loadDomainList();
   renderTable();   /* render skeleton with domain names right away */
   updateStats();
@@ -2557,14 +2480,7 @@ function pinMobileInput(el) {
   if (raw.length === 6) {
     el.blur(); /* dismiss keyboard */
     setTimeout(function() {
-      /* Run check — on failure, clear the input */
-      var valid = (sha256(pinBuffer) === PIN_HASH);
-      if (!valid) {
-        el.value = '';
-        el.classList.add('error');
-        setTimeout(function() { el.classList.remove('error'); }, 700);
-      }
-      pinCheck();
+      pinCheck();   /* clears the input itself on failure */
     }, 150);
   }
 }
@@ -2591,7 +2507,7 @@ function applyNotifyConfig(cfg) {
   _notifyConfig.enabled = !!(cfg && cfg.notify_enabled);
   _notifyConfig.from    = (cfg && cfg.notify_from) || '';
   _notifyConfig.to      = (cfg && cfg.notify_to)   || '';
-  _notifyConfig.hasKey  = !!(cfg && cfg.notify_api_key_enc);
+  _notifyConfig.hasKey  = !!(cfg && cfg.notify_api_key_set);
   /* Update menu dot once config is loaded */
   if (typeof _notifyUpdateMenuDot === 'function') _notifyUpdateMenuDot();
 }
@@ -2628,7 +2544,7 @@ async function notifyDowntime(domain, status, latency) {
   }
 
   try {
-    await fetch('./notify.php', {
+    await aseFetch('./notify.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2653,7 +2569,7 @@ async function notifyDowntime(domain, status, latency) {
  */
 async function sendTestNotification() {
   try {
-    var res = await fetch('./notify.php', {
+    var res = await aseFetch('./notify.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'test' })
@@ -2675,6 +2591,7 @@ async function sendTestNotification() {
    ──────────────────────────────────────────────────────────────── */
 
 function openNotifyModal() {
+  if (IS_DEMO) { demoBlocked('Notifications'); return; }
   var m = document.getElementById('notify-modal');
   if (!m) return;
   m.classList.add('open');
@@ -3076,7 +2993,7 @@ async function sendHealthReport(isManual, force) {
 
   /* Send single digest covering all issues */
   try {
-    var res = await fetch('./notify.php', {
+    var res = await aseFetch('./notify.php', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
@@ -3178,6 +3095,57 @@ function cpMobileInput(el) {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────
+   v6.1.0 — EXPORT JSON
+   Same data as the CSV export, structured for scripts and dashboards.
+   ──────────────────────────────────────────────────────────────── */
+function exportJSON() {
+  var now = new Date().toISOString();
+  var rows = DOMAINS.map(function(d) {
+    var st = domainState[d.domain] || {};
+    var days = daysUntil(d.sslExpiry);
+    return {
+      rank: d.rank, domain: d.domain, category: d.cat,
+      status: st.up === true ? 'UP' : st.up === false ? 'DOWN' : 'UNKNOWN',
+      latency_ms: (st.latency != null) ? st.latency : null,
+      ssl_days_left: days !== null ? days : null,
+      ns: d.ns, mx: d.mxType, dmarc: d.dmarc, spf: d.spf,
+      uptime_pct: (typeof uptimePercent === 'function') ? uptimePercent(d.domain) : null
+    };
+  });
+  var blob = new Blob([JSON.stringify({ generated_at: now, version: ASE_VERSION, count: rows.length, domains: rows }, null, 2)],
+                      { type: 'application/json;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'ase-' + now.slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   v6.1.0 — KEYBOARD SHORTCUTS
+     /  focus search      r  refresh now      a  add domain
+     ?  help              Esc clear search (when focused)
+   Inactive while typing, with a modifier key held, or with a modal open.
+   ──────────────────────────────────────────────────────────────── */
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var t = e.target, tag = t && t.tagName;
+  var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
+  var search = document.getElementById('search-input');
+  if (typing) {
+    if (e.key === 'Escape' && t === search) { search.value = ''; renderTable(); search.blur(); }
+    return;
+  }
+  var pin = document.getElementById('pin-overlay');
+  if (!IS_DEMO && pin && pin.style.display !== 'none') return;        /* locked */
+  if (document.querySelector('.modal-overlay.open, .modal.open, #notify-modal.open')) return;
+  if (e.key === '/') { e.preventDefault(); if (search) { search.focus(); search.select(); } }
+  else if (e.key === 'r') { triggerRefresh(); aseToast('Refreshing…'); }
+  else if (e.key === 'a') { openAddModal(); }
+  else if (e.key === '?') { openInfoModal(); }
+});
+
 /* ── Page bootstrap ─────────────────────────────────────────────
    Order of operations on every page load:
      1. loadConfig()     — fetch ase_config.json (may override PIN_HASH + theme)
@@ -3185,13 +3153,24 @@ function cpMobileInput(el) {
      3. PIN overlay     — shown by default in HTML; initDashboard() called on unlock
    ──────────────────────────────────────────────────────────────── */
 (async function bootstrap() {
-  /* Load server config BEFORE showing PIN overlay — so the correct PIN hash
-     is in memory when the user enters their PIN. */
+  /* Load server state first: who is signed in, theme, uptime history. */
   await loadConfig();
 
-  if (!checkWebhookMode()) {
-    /* Normal mode — PIN gate is already visible in the HTML.
-       initDashboard() is called by pinCheck() → checkFirstUse() after unlock. */
-    console.log('[ASE] Ready. Config loaded. Waiting for PIN...');
+  if (IS_DEMO) {
+    /* Public demo (ase.live): read-only, no sign-in. */
+    console.log('[ASE] v' + ASE_VERSION + ' demo mode — dashboard starting without PIN.');
+    initDashboard();
+  } else if (!ASE_BACKEND) {
+    /* No PHP backend (static hosting): there is nothing to authenticate against. */
+    document.getElementById('pin-overlay').style.display = 'none';
+    console.log('[ASE] v' + ASE_VERSION + ' static mode — no PHP backend found, sign-in and history disabled.');
+    initDashboard();
+    setTimeout(function() { aseToast('Static mode: no PHP backend, so no sign-in or saved history'); }, 800);
+  } else if (ASE_AUTHED) {
+    /* Valid session cookie: skip the PIN pad. */
+    document.getElementById('pin-overlay').style.display = 'none';
+    checkFirstUse();
+  } else {
+    console.log('[ASE] v' + ASE_VERSION + ' ready. Waiting for PIN...');
   }
 })();
