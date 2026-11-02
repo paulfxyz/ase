@@ -21,7 +21,7 @@
  */
 
 if (defined('ASE_LIB')) { return; }
-define('ASE_LIB', '6.1.0');
+define('ASE_LIB', '6.1.1');
 
 define('ASE_CONFIG_FILE', __DIR__ . '/ase_config.json');
 define('ASE_SECRET_FILE', __DIR__ . '/auth_secret.key');

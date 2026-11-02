@@ -55,7 +55,7 @@ define('MAX_DOMAINS',   200);   // safety cap — prevents runaway cron
 define('NOTIFY_PHP',    __DIR__ . '/notify.php');   // email notification endpoint
 define('CONFIG_FILE',   __DIR__ . '/ase_config.json'); // settings (for notification check)
 define('NOTIFY_SENT',   __DIR__ . '/cron_notify_sent.json'); // deduplication tracker
-define('VERSION', '6.1.0');
+define('VERSION', '6.1.1');
 define('UPTIME_FILE',   __DIR__ . '/uptime.json');  // persistent uptime history
 
 require_once __DIR__ . '/_ase.php';

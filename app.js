@@ -130,7 +130,7 @@ async function aseSignOut() {
    ASE_DEMO is set by the early inline script in index.html and is true
    ONLY on the public demo host (ase.live). Self-hosted installs are never
    affected: they keep the PIN gate and full read/write behaviour.        */
-var ASE_VERSION = '6.1.0';
+var ASE_VERSION = '6.1.1';
 var IS_DEMO = (window.ASE_DEMO === true);
 var ASE_BACKEND = false;   /* true when auth.php answers (PHP host) */
 var ASE_AUTHED  = false;   /* true when the server accepted our session cookie */
@@ -1713,6 +1713,7 @@ async function loadDomainList() {
         dmarc: 'missing', spf: '', custom: false
       };
     });
+    DOMAINS.forEach(function(d, i) { d.rank = i + 1; });   /* contiguous ranks, no gaps after de-duplication */
     console.log('[ASE] Loaded ' + DOMAINS.length + ' domains from domains.list');
   } catch(e) {
     DOMAINS = BUILTIN.slice();

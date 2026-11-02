@@ -1,24 +1,118 @@
-# 👁 ASE — The All-Seeing-Eye · Domain Guardian
+<p align="center">
+  <img src="icon-512.png" alt="ASE — All Seeing Eye logo" width="128" height="128">
+</p>
 
-[![HTML](https://img.shields.io/badge/HTML-5-orange?style=flat-square&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
-[![JavaScript](https://img.shields.io/badge/JavaScript-ES2020-yellow?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-[![PHP](https://img.shields.io/badge/PHP-7.4%2B-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-6.1.0-blue?style=flat-square)](https://github.com/paulfxyz/ase/releases)
-[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-purple?style=flat-square)](#setup--installation)
-[![No build step](https://img.shields.io/badge/Build%20step-none-success?style=flat-square)](#tech-stack-decisions)
+<h1 align="center">All Seeing Eye (ASE)</h1>
 
-**Self-hosted DNS, SSL and email-security monitor with email alerts. Plain HTML, JavaScript and PHP. No npm, no database, no build step.**
+<p align="center">
+  <strong>A small, honest watchtower for your domains.</strong><br>
+  DNS, SSL and email-security checks, uptime history and email alerts. Self-hosted, open source, no build step.
+</p>
 
-*The All-Seeing-Eye (ASE) — a small, honest watchtower for your domains.*
+<p align="center">
+  <a href="https://ase.live"><strong>Live demo</strong></a> &nbsp;·&nbsp;
+  <a href="https://ase.so"><strong>Website</strong></a> &nbsp;·&nbsp;
+  <a href="https://github.com/paulfxyz/ase/releases"><strong>Releases</strong></a> &nbsp;·&nbsp;
+  <a href="./INSTALL.md"><strong>Install</strong></a> &nbsp;·&nbsp;
+  <a href="./CHANGELOG.md"><strong>Changelog</strong></a>
+</p>
 
-> **v6.1.0 is an audit release.** The code, the claims in this README and the landing page were re-checked against what the software really does, several bugs and security gaps were fixed, and a few claims were corrected. See [Audit Notes](#audit-notes-v610).
+<p align="center">
+  <a href="https://github.com/paulfxyz/ase/releases"><img alt="Release" src="https://img.shields.io/github/v/release/paulfxyz/ase?style=flat-square&color=5b4fe0&label=release"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/paulfxyz/ase?style=flat-square&color=2ea44f"></a>
+  <a href="https://github.com/paulfxyz/ase/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/paulfxyz/ase?style=flat-square&color=e3b341"></a>
+  <a href="https://github.com/paulfxyz/ase/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/paulfxyz/ase?style=flat-square"></a>
+  <a href="https://github.com/paulfxyz/ase/issues"><img alt="Issues" src="https://img.shields.io/github/issues/paulfxyz/ase?style=flat-square"></a>
+  <img alt="Repo size" src="https://img.shields.io/github/repo-size/paulfxyz/ase?style=flat-square">
+</p>
+
+<p align="center">
+  <img alt="HTML5" src="https://img.shields.io/badge/HTML-5-e34f26?style=flat-square&logo=html5&logoColor=white">
+  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES2020-f7df1e?style=flat-square&logo=javascript&logoColor=black">
+  <img alt="PHP 7.4+" src="https://img.shields.io/badge/PHP-7.4%2B-777bb4?style=flat-square&logo=php&logoColor=white">
+  <img alt="No build step" src="https://img.shields.io/badge/build%20step-none-success?style=flat-square">
+  <img alt="No npm packages" src="https://img.shields.io/badge/npm%20packages-0-success?style=flat-square">
+  <img alt="Languages" src="https://img.shields.io/badge/languages-11-blue?style=flat-square">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-purple?style=flat-square">
+  <img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="https://ase.live"><img src="docs/img/dashboard-light.png" alt="ASE dashboard: 100 domains with live status, latency, SSL expiry, nameservers, MX, DMARC and SPF" width="900"></a>
+</p>
+
+> **v6.1.0 is an audit release.** The code, this README and the landing page were re-checked against what the software really does, several bugs and security gaps were fixed, and a few claims were corrected. See [Audit Notes](#audit-notes-v610).
+
+> **Built with AI, honestly.** ASE was vibe-coded with AI assistance and then audited, including an independent review of the authentication layer by a frontier model. It is a personal-scale tool, not a hardened enterprise product. Read the [Security Model](#security-model) before exposing it to the internet.
 
 ---
 
-**[🔴 Live Demo](https://ase.live)** &nbsp;·&nbsp; **[🌐 ase.so](https://ase.so)** &nbsp;·&nbsp; **[📦 GitHub Releases](https://github.com/paulfxyz/ase/releases)** &nbsp;·&nbsp; **[⭐ Star on GitHub](https://github.com/paulfxyz/ase)**
+## At a glance
+
+| | |
+|---|---|
+| **What it checks** | A record (DNS reachability), NS provider, MX provider, DMARC policy, SPF policy, real TLS certificate expiry and issuer, latency |
+| **How it checks** | Live DNS-over-HTTPS from the browser, server-side TLS handshakes in PHP, a scheduled worker for 24/7 history |
+| **What you get** | Sortable dashboard, expiry alerts, cumulative uptime history, email digests via Resend, CSV and JSON export |
+| **What it needs** | Any Apache host with PHP 7.4+ (shared hosting is fine). No database, no npm, no build |
+| **Where your data lives** | On your server. No accounts, no analytics |
+| **Languages** | English, Français, Deutsch, Español, Português, Türkçe, 中文, 日本語, Русский, Italiano, हिन्दी (marketing site) |
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/dashboard-dark.png" alt="Dark mode dashboard"><br><sub><b>Dark mode.</b> Same data, easier on the eyes. The banner lists the six most urgent certificates.</sub></td>
+    <td width="50%"><img src="docs/img/tooltip.png" alt="Tooltip showing the raw name server records for baidu.com"><br><sub><b>Raw records on hover.</b> Every NS, MX, DMARC and SPF badge explains itself with the underlying DNS record.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/img/dashboard-mobile.png" alt="Mobile dashboard" width="300"><br><sub><b>Mobile first.</b> Stat cards and the table reflow for phones.</sub></td>
+    <td width="50%" align="center"><img src="docs/img/pin-pad.png" alt="PIN pad sign-in screen" width="300"><br><sub><b>Sign-in.</b> A 6-digit PIN, verified on the server (bcrypt), with login throttling.</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/img/landing-hero.png" alt="The ase.so landing page"><br><sub><b>The landing page</b> at <a href="https://ase.so">ase.so</a>, available in 11 languages.</sub></td>
+  </tr>
+</table>
+
+Screenshots are taken from the [live demo](https://ase.live) with real DNS and TLS data.
+
+## Quick start
+
+```bash
+git clone https://github.com/paulfxyz/ase.git
+# upload the app files to your PHP host (see INSTALL.md for the exact list), then on the server:
+php auth.php set-pin 482915                 # choose your own 6-digit PIN
+echo "*/10 * * * * php $PWD/update-stats.php >/dev/null 2>&1" | crontab -   # optional: 24/7 history and alerts
+```
+
+Open your site, sign in, and edit `domains.list` or use **Add Domain**. The full guide, including SiteGround and cPanel notes, is in [INSTALL.md](./INSTALL.md).
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `/` | Focus the search box |
+| `r` | Refresh all domains |
+| `a` | Add a domain |
+| `?` | How it works |
+| `Esc` | Close dialogs |
+
+## FAQ
+
+**Is "UP" an HTTP check?** No. It means the domain's A record resolves. An HTTP status check is on the [roadmap](#roadmap).
+
+**Does it phone home?** No. Your browser contacts Cloudflare DNS-over-HTTPS, Google Fonts and the Google favicon service; the server may fall back to crt.sh. Nothing is sent to the author.
+
+**Can I run it without PHP?** The dashboard opens in a static mode with live DNS checks, but without sign-in, saved history, SSL handshakes or alerts.
+
+**Is a 6-digit PIN enough?** For a private tool behind a rate limiter, it is a reasonable gate. It is not strong authentication; the [Security Model](#security-model) shows how to add HTTP Basic Auth.
+
+**Why not UptimeRobot or Better Stack?** Those are excellent at HTTP uptime. ASE covers the DNS, certificate and mail-policy side in one table, and you host it yourself.
+
+**Why does the demo show different SSL dates than yesterday?** Certificates are checked live (cached for 6 hours), so the numbers are real and change over time.
 
 ---
+
 
 > This README is a deeply technical reference — it covers not just *how* to use ASE but *why* every architectural decision was made, every bug that was hit, and every lesson learned building it. If you're evaluating ASE for your own infrastructure or want to understand how a small monitoring dashboard can be built with plain HTML, JavaScript and PHP and no build tooling, read on. Sections that describe the early PIN design (SHA-256 in the browser) are kept as history; [Security Model](#security-model) describes the current design.
 
@@ -2039,6 +2133,10 @@ Open a GitHub issue with:
 ## Version History
 
 Full history with technical change notes.
+
+### v6.1.1 — 2026-11-02 — Docs and polish
+
+README rebuilt with logo, badges, screenshots, quick start, shortcuts and FAQ. Contiguous rank numbers in the table and a corrected help-dialog text. No security or behaviour changes.
 
 ### v6.1.0 — 2026-10-29 — Audit release
 
