@@ -16,6 +16,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Docs: README rebuilt with logo, badges, screenshots (docs/img), quick start, shortcuts and FAQ.
 - Fix: rank numbers in the table are contiguous (the de-duplicated list left a gap at 4).
 - Fix: the help dialog said "top-50"; the built-in list has 100.
+- Assets are versioned (`app.js?v=…`) so browsers pick up updates instead of serving a stale cached copy.
 
 ---
 
