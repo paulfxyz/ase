@@ -15,3 +15,4 @@ cron.log
 demo.flag
 .ase_config.lock
 ssl_cache.json
+http_cache.json

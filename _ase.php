@@ -21,7 +21,7 @@
  */
 
 if (defined('ASE_LIB')) { return; }
-define('ASE_LIB', '6.1.1');
+define('ASE_LIB', '6.2.0');
 
 define('ASE_CONFIG_FILE', __DIR__ . '/ase_config.json');
 define('ASE_SECRET_FILE', __DIR__ . '/auth_secret.key');
@@ -296,8 +296,146 @@ function ase_public_ip(string $host): ?string {
     if (!preg_match('/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?)+$/i', $host)) return null;
     $ips = @gethostbynamel($host);
     if (!$ips) return null;
+    if (php_sapi_name() === 'cli' && getenv('ASE_TEST_ALLOW_PRIVATE') === '1') return $ips[0];   /* test hook, never reachable over HTTP */
     foreach ($ips as $ip) {
         if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return null;
     }
     return $ips[0];
+}
+
+/* ── Uptime method (v6.2.0) ──────────────────────────────────── */
+
+/**
+ * How "UP" is decided for every domain: 'dns' (A record resolves),
+ * 'http' (the web server answers) or 'both' (default: both must confirm).
+ */
+function ase_check_mode(?array $cfg = null): string {
+    $cfg = $cfg ?? ase_config();
+    $m = (string)($cfg['check_mode'] ?? 'both');
+    return in_array($m, ['dns', 'http', 'both'], true) ? $m : 'both';
+}
+
+/** Combine the two signals according to the mode. null = still unknown. */
+function ase_combine_up(?bool $dns, ?bool $http, string $mode): ?bool {
+    if ($mode === 'dns')  return $dns;
+    if ($mode === 'http') return $http;
+    if ($dns === false || $http === false) return false;   /* one failure is enough */
+    return ($dns === true && $http === true) ? true : null;
+}
+
+/* ── HTTP probe ──────────────────────────────────────────────── */
+
+/**
+ * Probe several domains over HTTP(S) and report whether a web server answers.
+ *
+ *   status 100-499  → ok  (2xx/3xx/4xx all prove a server is answering; many
+ *                          healthy sites answer bots with 403/429)
+ *   status 500-599  → down (server error)
+ *   no response     → down (refused, timeout, TLS failure)
+ *
+ * Tries https://domain/ first and falls back to http://domain/ only when the
+ * HTTPS connection itself fails. Redirects are NOT followed (a 301 already
+ * proves the server is up, and following would open an SSRF path). Certificate
+ * errors are ignored on purpose: expiry is reported by the SSL column.
+ * Every hostname must resolve to public addresses only, and the connection
+ * goes to the validated IP.
+ *
+ * @param  string[] $domains
+ * @return array<string,array{ok:?bool,status:?int,ms:?int,scheme:?string,error:?string}>
+ */
+function ase_http_probe_many(array $domains, int $timeout = 6): array {
+    $out = []; $jobs = [];
+    foreach ($domains as $d) {
+        $d  = strtolower(trim((string)$d));
+        $ip = ase_public_ip($d);
+        if ($ip === null) { $out[$d] = ['ok' => false, 'status' => null, 'ms' => null, 'scheme' => null, 'error' => 'does not resolve to a public address']; continue; }
+        $jobs[$d] = $ip;
+    }
+    if (!$jobs) return $out;
+    $res = function_exists('curl_multi_init') ? ase__probe_curl($jobs, $timeout) : ase__probe_streams($jobs, $timeout);
+    foreach ($res as $d => $r) {
+        $s = $r['status'];
+        $out[$d] = [
+            'ok'     => $s === null ? false : ($s < 500),
+            'status' => $s, 'ms' => $r['ms'], 'scheme' => $r['scheme'],
+            'error'  => $s === null ? ($r['error'] ?: 'no response') : ($s >= 500 ? 'server error' : null),
+        ];
+    }
+    return $out;
+}
+
+/** One parallel round of curl handles. $jobs: id => [url, host, port, ip, method]. */
+function ase__curl_round(array $jobs, int $timeout): array {
+    $mh = curl_multi_init(); $hs = [];
+    foreach ($jobs as $id => $j) {
+        $ch = curl_init($j['url']);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => false, CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_TIMEOUT => $timeout, CURLOPT_CONNECTTIMEOUT => min(4, $timeout), CURLOPT_NOSIGNAL => true,
+            CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_RESOLVE => [$j['host'] . ':' . $j['port'] . ':' . $j['ip']],
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; ASE-Monitor/6.2; +https://ase.so)',
+            CURLOPT_HTTPHEADER => ['Accept: */*'],
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        ]);
+        if ($j['method'] === 'HEAD') { curl_setopt($ch, CURLOPT_NOBODY, true); }
+        else { curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($c, $data) { return 0; }); }   /* stop after headers */
+        curl_multi_add_handle($mh, $ch); $hs[$id] = $ch;
+    }
+    do { $st = curl_multi_exec($mh, $running); if ($running) curl_multi_select($mh, 0.2); } while ($running && $st === CURLM_OK);
+    $res = [];
+    foreach ($hs as $id => $ch) {
+        $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $res[$id] = ['status' => $code > 0 ? $code : null, 'ms' => (int)round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000), 'error' => curl_error($ch)];
+        curl_multi_remove_handle($mh, $ch); curl_close($ch);
+    }
+    curl_multi_close($mh);
+    return $res;
+}
+
+function ase__probe_curl(array $ips, int $timeout): array {
+    $final = []; $pending = $ips;
+    foreach (['https' => 443, 'http' => 80] as $scheme => $port) {
+        if (!$pending) break;
+        $jobs = [];
+        foreach ($pending as $d => $ip) $jobs[$d] = ['url' => "$scheme://$d/", 'host' => $d, 'port' => $port, 'ip' => $ip, 'method' => 'HEAD'];
+        $r1 = ase__curl_round($jobs, $timeout);
+        /* Some servers reject HEAD: retry those with GET */
+        $retry = [];
+        foreach ($r1 as $d => $r) { if (in_array($r['status'], [400, 405, 501], true)) { $jobs[$d]['method'] = 'GET'; $retry[$d] = $jobs[$d]; } }
+        if ($retry) { foreach (ase__curl_round($retry, $timeout) as $d => $r) { if ($r['status'] !== null) $r1[$d] = $r; } }
+        $next = [];
+        foreach ($r1 as $d => $r) {
+            if ($r['status'] !== null) { $final[$d] = $r + ['scheme' => $scheme]; }
+            else { $next[$d] = $pending[$d]; $final[$d] = $r + ['scheme' => null]; }   /* keep last error */
+        }
+        $pending = $next;
+    }
+    return $final;
+}
+
+/** Portable fallback without ext-curl: sequential, bounded by a total budget. */
+function ase__probe_streams(array $ips, int $timeout): array {
+    $final = []; $deadline = microtime(true) + 40;
+    foreach ($ips as $d => $ip) {
+        $final[$d] = ['status' => null, 'ms' => null, 'scheme' => null, 'error' => 'time budget exceeded'];
+        if (microtime(true) > $deadline) continue;
+        foreach (['https' => 443, 'http' => 80] as $scheme => $port) {
+            foreach (['HEAD', 'GET'] as $method) {
+                $t0 = microtime(true);
+                $ctx = stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'peer_name' => $d, 'SNI_enabled' => true]]);
+                $fp = @stream_socket_client(($scheme === 'https' ? 'ssl' : 'tcp') . "://$ip:$port", $en, $es, min(4, $timeout), STREAM_CLIENT_CONNECT, $ctx);
+                if (!$fp) { $final[$d]['error'] = $es ?: 'connect failed'; break; }
+                stream_set_timeout($fp, $timeout);
+                fwrite($fp, "$method / HTTP/1.1\r\nHost: $d\r\nUser-Agent: Mozilla/5.0 (compatible; ASE-Monitor/6.2; +https://ase.so)\r\nAccept: */*\r\nConnection: close\r\n\r\n");
+                $line = (string)fgets($fp, 256); fclose($fp);
+                if (!preg_match('#^HTTP/\d(?:\.\d)?\s+(\d{3})#', $line, $m)) { $final[$d]['error'] = 'bad response'; break; }
+                $code = (int)$m[1];
+                $final[$d] = ['status' => $code, 'ms' => (int)round((microtime(true) - $t0) * 1000), 'scheme' => $scheme, 'error' => ''];
+                if (!in_array($code, [400, 405, 501], true)) break 2;
+            }
+            if ($final[$d]['status'] !== null) break;
+        }
+    }
+    return $final;
 }

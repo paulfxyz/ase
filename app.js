@@ -104,6 +104,14 @@ async function loadConfig() {
     } catch(e) { /* keep going with defaults */ }
   }
   await uptimePromise;
+
+  /* Uptime method: server setting when signed in; browser-local in the demo / static mode */
+  var local = null;
+  try { local = localStorage.getItem('ase-check-mode'); } catch (e) {}
+  var serverMode = (_asmConfig && _asmConfig.check_mode) || null;
+  var chosen = ((IS_DEMO || !ASE_BACKEND) ? (local || serverMode) : serverMode) || 'both';
+  CHECK_MODE = (['dns', 'http', 'both'].indexOf(chosen) >= 0) ? chosen : 'both';
+  syncCheckModeUI();
 }
 
 /** Same-origin fetch for state-changing calls: adds the CSRF header and
@@ -130,7 +138,7 @@ async function aseSignOut() {
    ASE_DEMO is set by the early inline script in index.html and is true
    ONLY on the public demo host (ase.live). Self-hosted installs are never
    affected: they keep the PIN gate and full read/write behaviour.        */
-var ASE_VERSION = '6.1.1';
+var ASE_VERSION = '6.2.0';
 var IS_DEMO = (window.ASE_DEMO === true);
 var ASE_BACKEND = false;   /* true when auth.php answers (PHP host) */
 var ASE_AUTHED  = false;   /* true when the server accepted our session cookie */
@@ -834,7 +842,7 @@ function renderTable() {
 
   /* Build rows HTML */
   var html = rows.map(function(d) {
-    var st   = domainState[d.domain] || { up: null, latency: null, history: [] };
+    var st   = domainState[d.domain] || { up: null, dns: null, http: null, latency: null, history: [] };
     var days = daysUntil(d.sslExpiry);
 
     var rankHTML    = d.custom ? '<span style="color:var(--accent)">★</span>' : d.rank;
@@ -877,6 +885,7 @@ function renderTable() {
             '<span class="status-label ' + statusCls + '">' + statusLabel + '</span>' +
             '<div class="sparkline">' + sparklineHTML(st.history) + '</div>' +
           '</div>' +
+          statusSubHTML(st) +
           uptimeTooltipHTML(d.domain, st.up) +
         '</div>' +
       '</div></td>' +
@@ -1349,10 +1358,161 @@ async function fetchAllSSLExpiry(domains) {
 }
 
 
-async function checkDomain(domain, fullScan) {
+/* ────────────────────────────────────────────────────────────────
+   UPTIME METHOD (v6.2.0)
+   "UP" can be decided by DNS (A record resolves), HTTP (the web server
+   answers with a status below 500) or both (default: both must confirm).
+   One setting for all domains. Signed-in installs keep it in
+   ase_config.json; in the demo and in static mode it lives in this browser.
+   HTTP status codes cannot be read cross-origin from a page, so the HTTP
+   probe runs on the server (http-check.php). Without PHP the browser can only
+   learn whether a server answered at all (opaque no-cors fetch).
+   ──────────────────────────────────────────────────────────────── */
+var CHECK_MODE = 'both';                       /* 'dns' | 'http' | 'both' */
+var CHECK_MODE_LABELS = { dns: 'DNS (A record) only', http: 'HTTP only', both: 'DNS and HTTP' };
+
+function combineUp(dns, http, mode) {
+  if (mode === 'dns')  return (dns === undefined) ? null : dns;
+  if (mode === 'http') return (http === undefined) ? null : http;
+  if (dns === false || http === false) return false;       /* one failure is enough */
+  return (dns === true && http === true) ? true : null;    /* null = still waiting */
+}
+
+/** Recompute st.up from the stored signals and record the result in history */
+function applyResult(domain, skipUptime) {
+  var st = domainState[domain];
+  if (!st) return;
+  st.up = combineUp(st.dns, st.http, CHECK_MODE);
+  if (CHECK_MODE === 'http' && st.httpMs != null) st.latency = st.httpMs;
+  if (st.up === null) return;
+  st.history.push({ up: st.up, latency: st.latency });
+  if (st.history.length > 20) st.history.shift();
+  if (!skipUptime) uptimeRecord(domain, st.up, st.latency);
+}
+
+/** Re-evaluate every row after the mode changed (no network needed) */
+function recomputeAllUp() {
+  DOMAINS.forEach(function(d) {
+    var st = domainState[d.domain];
+    if (!st) return;
+    st.up = combineUp(st.dns, st.http, CHECK_MODE);
+    if (CHECK_MODE === 'http' && st.httpMs != null) st.latency = st.httpMs;
+  });
+}
+
+/* Browser-only HTTP reachability (static hosting / server unavailable) */
+async function httpProbeBrowser(domain) {
+  var t0 = Date.now(), ctl = new AbortController();
+  var to = setTimeout(function() { ctl.abort(); }, 6000);
+  try {
+    await fetch('https://' + domain + '/', { mode: 'no-cors', cache: 'no-store', signal: ctl.signal });
+    return { domain: domain, ok: true, status: null, ms: Date.now() - t0, scheme: 'https', error: null, browser: true };
+  } catch (e) {
+    return { domain: domain, ok: false, status: null, ms: null, scheme: null, error: 'no response (browser check)', browser: true };
+  } finally { clearTimeout(to); }
+}
+
+/* Requests are coalesced into small batches and sent one after another */
+var _httpQ = [], _httpTimer = null, _httpJobs = [], _httpActive = 0, _httpPending = [];
+function httpProbe(domain) {
+  return new Promise(function(resolve) {
+    _httpQ.push({ domain: domain, resolve: resolve });
+    if (!_httpTimer) _httpTimer = setTimeout(_httpFlush, 30);
+  });
+}
+function _httpFlush() {
+  _httpTimer = null;
+  var items = _httpQ.splice(0);
+  for (var i = 0; i < items.length; i += 10) _httpJobs.push(items.slice(i, i + 10));
+  _httpPump();
+}
+/* At most 4 requests of 10 domains in flight: a slow site only delays its own batch */
+function _httpPump() {
+  while (_httpActive < 4 && _httpJobs.length) {
+    _httpActive++;
+    _httpRun(_httpJobs.shift()).then(function() { _httpActive--; _httpPump(); });
+  }
+}
+async function _httpRun(chunk) {
+  var domains = chunk.map(function(c) { return c.domain; });
+  var map = null;
+  if (ASE_BACKEND && (IS_DEMO || ASE_AUTHED)) {
+    try {
+      var res = await aseFetch('./http-check.php?domains=' + encodeURIComponent(domains.join(',')), { cache: 'no-store' });
+      if (res.ok) {
+        var arr = await res.json();
+        if (Array.isArray(arr)) { map = {}; arr.forEach(function(r) { map[r.domain] = r; }); }
+      }
+    } catch (e) { /* fall through to the browser probe */ }
+  }
+  if (!map) {
+    var rs = await Promise.all(domains.map(httpProbeBrowser));
+    map = {}; rs.forEach(function(r) { map[r.domain] = r; });
+  }
+  chunk.forEach(function(c) { c.resolve(map[c.domain] || { ok: false, status: null, ms: null, error: 'no result' }); });
+}
+
+/** Wait for every deferred HTTP probe started by checkAll() */
+async function httpIdle() {
+  while (_httpPending.length) { var p = _httpPending.splice(0); await Promise.all(p); }
+}
+
+/** Set the method for all domains. Persists server-side when signed in. */
+async function setCheckMode(mode, silent) {
+  if (['dns', 'http', 'both'].indexOf(mode) < 0) return;
+  var changed = (mode !== CHECK_MODE);
+  CHECK_MODE = mode;
+  if (IS_DEMO || !ASE_AUTHED) {
+    try { localStorage.setItem('ase-check-mode', mode); } catch (e) {}
+  } else {
+    var ok = await saveConfig({ check_mode: mode });
+    if (!ok) aseToast('Could not save the setting on the server');
+  }
+  syncCheckModeUI();
+  if (!changed) return;
+  recomputeAllUp();
+  renderTable(); updateStats();
+  /* Missing signals for the new method? Run a fresh check. */
+  var missing = (mode !== 'dns') && DOMAINS.some(function(d) { var st = domainState[d.domain]; return st && st.http == null && (mode === 'http' || st.dns === true); });
+  if (missing) { _lastCheckAll = 0; checkAll(); }
+  if (!silent) aseToast('Uptime method: ' + CHECK_MODE_LABELS[mode]);
+}
+
+function syncCheckModeUI() {
+  document.querySelectorAll('[data-mode-btn]').forEach(function(b) {
+    var on = b.getAttribute('data-mode-btn') === CHECK_MODE;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  var r = document.querySelector('input[name="check-mode"][value="' + CHECK_MODE + '"]');
+  if (r) r.checked = true;
+  var sub = document.getElementById('stat-latency-sub');
+  if (sub) sub.textContent = CHECK_MODE === 'http' ? 'HTTP response' : 'DNS resolve';
+  var on2 = document.getElementById('stat-online-sub');
+  if (on2) on2.textContent = CHECK_MODE === 'dns' ? 'Resolving' : CHECK_MODE === 'http' ? 'Answering HTTP' : 'DNS + HTTP OK';
+  var note = document.getElementById('mode-note');
+  if (note) note.textContent = (IS_DEMO || !ASE_AUTHED)
+    ? (IS_DEMO ? 'Demo: this choice is stored in your browser only.' : 'Stored in this browser (no server sign-in).')
+    : 'Saved on the server. Applies to every domain, to scheduled checks and to alert emails.';
+}
+
+/** Compact "DNS ✓ · HTTP 200" line under the status label */
+function statusSubHTML(st) {
+  function dnsPart() { return 'DNS ' + (st.dns === true ? '✓' : st.dns === false ? '✗' : '…'); }
+  function httpPart() {
+    if (st.http == null) return (st.dns === false && CHECK_MODE === 'both') ? 'HTTP —' : 'HTTP …';
+    var code = st.httpStatus ? ' ' + st.httpStatus : (st.httpBrowser ? ' reachable' : '');
+    return 'HTTP ' + (st.http ? '✓' : '✗') + (st.http ? code : (code || (st.httpErr ? ' ' + escHtml(String(st.httpErr).replace(/^no response.*$/, 'no answer')) : '')));
+  }
+  var txt = CHECK_MODE === 'dns' ? dnsPart() : CHECK_MODE === 'http' ? httpPart() : dnsPart() + ' · ' + httpPart();
+  var bad = (st.dns === false && CHECK_MODE !== 'http') || (st.http === false && CHECK_MODE !== 'dns');
+  return '<div class="status-sub' + (bad ? ' bad' : '') + '">' + txt + '</div>';
+}
+
+async function checkDomain(domain, fullScan, deferHttp) {
   /* Ensure state entry exists */
   if (!domainState[domain]) {
-    domainState[domain] = { up: null, latency: null, history: [] };
+    domainState[domain] = { up: null, dns: null, http: null, latency: null, history: [] };
   }
   var st = domainState[domain];
 
@@ -1361,22 +1521,33 @@ async function checkDomain(domain, fullScan) {
   /* Custom domains (or those with placeholder data) always get a full scan */
   var needFullScan = fullScan || !entry || entry.custom || entry.ns === '—';
 
-  /* ── A record: uptime + latency ── */
-  var t0 = Date.now();
+  /* ── A record: DNS signal + latency ── */
+  var t0 = Date.now(), dnsErr = false;
   try {
     var aRecords = await dohQuery(domain, 'A');
-    var ms  = Date.now() - t0;
-    var up  = aRecords.length > 0;
-    st.up      = up;
-    st.latency = ms;
-    st.history.push({ up: up, latency: ms });
-    if (st.history.length > 20) st.history.shift();
-    uptimeRecord(domain, up, ms);
+    st.dns     = aRecords.length > 0;
+    st.latency = Date.now() - t0;
   } catch(e) {
-    st.up      = false;
+    st.dns     = false;      /* resolver unreachable: shown as DOWN but not recorded in uptime history */
     st.latency = null;
-    st.history.push({ up: false, latency: null });
-    if (st.history.length > 20) st.history.shift();
+    dnsErr     = true;
+  }
+
+  /* ── HTTP signal (skipped when DNS-only, or when the name does not even resolve) ── */
+  st.http = null; st.httpStatus = null; st.httpMs = null; st.httpErr = null; st.httpBrowser = false;
+  var wantHttp = (CHECK_MODE === 'http') || (CHECK_MODE === 'both' && st.dns === true);
+  if (wantHttp) {
+    var hp = httpProbe(domain).then(function(r) {
+      st.http = !!r.ok; st.httpStatus = r.status || null; st.httpMs = r.ms; st.httpErr = r.error || null; st.httpBrowser = !!r.browser;
+      applyResult(domain, dnsErr && CHECK_MODE !== 'http');
+    });
+    if (deferHttp) {
+      _httpPending.push(hp.then(function() { renderTable(); updateStats(); }));
+    } else {
+      await hp;
+    }
+  } else {
+    applyResult(domain, dnsErr);
   }
 
   /* ── SSL expiry enrichment ──────────────────────────────────────────
@@ -1478,7 +1649,7 @@ async function checkAll() {
   /* Process in batches — stagger to avoid firewall triggers */
   for (var i = 0; i < DOMAINS.length; i += DNS_BATCH_SIZE) {
     var batch = DOMAINS.slice(i, i + DNS_BATCH_SIZE);
-    await Promise.all(batch.map(function(d) { return checkDomain(d.domain); }));
+    await Promise.all(batch.map(function(d) { return checkDomain(d.domain, false, true); }));
 
     /* Un-dim this batch immediately so user sees progressive results */
     batch.forEach(function(d) { setRowLoading(d.domain, false); });
@@ -1493,6 +1664,8 @@ async function checkAll() {
     }
   }
 
+  if (el) el.textContent = 'Checking HTTP…';
+  await httpIdle();                      /* wait for the HTTP probes started above */
   if (el) el.textContent = 'Last checked: ' + new Date().toLocaleTimeString();
   updateStats();
   renderTable();
@@ -1738,7 +1911,7 @@ async function loadDomainList() {
   _sslChecked = {};
   DOMAINS.forEach(function(d) {
     if (!domainState[d.domain]) {
-      domainState[d.domain] = { up: null, latency: null, history: [] };
+      domainState[d.domain] = { up: null, dns: null, http: null, latency: null, history: [] };
     }
   });
 
@@ -1880,7 +2053,7 @@ function confirmAddDomains() {
       sslExpiry: null, ns: '—', mxType: '—',
       dmarc: 'missing', spf: '', custom: true
     });
-    domainState[item.domain] = { up: null, latency: null, history: [] };
+    domainState[item.domain] = { up: null, dns: null, http: null, latency: null, history: [] };
   });
   persistCustomDomains();
 
@@ -1905,7 +2078,7 @@ function confirmAddDomains() {
    ──────────────────────────────────────────────────────────────── */
 function buildStatsCSV() {
   var now = new Date().toISOString();
-  var headers = ['Timestamp','Rank','Domain','Category','Status',
+  var headers = ['Timestamp','Rank','Domain','Category','Status','DNS','HTTP','HTTP Status',
                  'Latency (ms)','SSL Days','NS','MX','DMARC','SPF'];
   var rows = DOMAINS.map(function(d) {
     var st   = domainState[d.domain] || {};
@@ -1913,6 +2086,9 @@ function buildStatsCSV() {
     return [
       now, d.rank, d.domain, d.cat,
       st.up===true ? 'UP' : st.up===false ? 'DOWN' : 'UNKNOWN',
+      st.dns===true ? 'ok' : st.dns===false ? 'fail' : '',
+      st.http===true ? 'ok' : st.http===false ? 'fail' : '',
+      st.httpStatus || '',
       (st.latency!=null) ? st.latency : '',
       days!==null ? days : '',
       d.ns, d.mxType, d.dmarc, d.spf
@@ -1958,6 +2134,16 @@ function openWebhookModal() {
 }
 function closeWebhookModal() {
   var m = document.getElementById('webhook-modal');
+  if (m) m.classList.remove('open');
+}
+function openSettingsModal() {
+  var m = document.getElementById('settings-modal');
+  if (!m) return;
+  syncCheckModeUI();
+  m.classList.add('open');
+}
+function closeSettingsModal() {
+  var m = document.getElementById('settings-modal');
   if (m) m.classList.remove('open');
 }
 function openInfoModal() {
@@ -2889,7 +3075,9 @@ async function sendHealthReport(isManual, force) {
         type:       'down',
         severity:   'critical',
         label:      'Domain Unreachable',
-        detail:     'A record lookup returned no results — domain is not resolving.',
+        detail:     (st.dns === false)
+                      ? 'A record lookup returned no results — domain is not resolving.'
+                      : 'DNS resolves, but the web server did not answer correctly (' + (st.httpStatus ? 'HTTP ' + st.httpStatus : (st.httpErr || 'no response')) + ').',
         latency:    null,
         ssl_expiry: entry.sslExpiry  || null,
         ssl_days:   _calcSslDays(entry.sslExpiry),
@@ -3108,13 +3296,16 @@ function exportJSON() {
     return {
       rank: d.rank, domain: d.domain, category: d.cat,
       status: st.up === true ? 'UP' : st.up === false ? 'DOWN' : 'UNKNOWN',
+      dns_up: (st.dns === undefined) ? null : st.dns,
+      http_up: (st.http === undefined) ? null : st.http,
+      http_status: st.httpStatus || null,
       latency_ms: (st.latency != null) ? st.latency : null,
       ssl_days_left: days !== null ? days : null,
       ns: d.ns, mx: d.mxType, dmarc: d.dmarc, spf: d.spf,
       uptime_pct: (typeof uptimePercent === 'function') ? uptimePercent(d.domain) : null
     };
   });
-  var blob = new Blob([JSON.stringify({ generated_at: now, version: ASE_VERSION, count: rows.length, domains: rows }, null, 2)],
+  var blob = new Blob([JSON.stringify({ generated_at: now, version: ASE_VERSION, uptime_method: CHECK_MODE, count: rows.length, domains: rows }, null, 2)],
                       { type: 'application/json;charset=utf-8;' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -3134,6 +3325,7 @@ document.addEventListener('keydown', function(e) {
   var t = e.target, tag = t && t.tagName;
   var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
   var search = document.getElementById('search-input');
+  if (e.key === 'Escape') { var sm = document.getElementById('settings-modal'); if (sm && sm.classList.contains('open')) { closeSettingsModal(); return; } }
   if (typing) {
     if (e.key === 'Escape' && t === search) { search.value = ''; renderTable(); search.blur(); }
     return;
@@ -3149,8 +3341,8 @@ document.addEventListener('keydown', function(e) {
 
 /* ── Page bootstrap ─────────────────────────────────────────────
    Order of operations on every page load:
-     1. loadConfig()     — fetch ase_config.json (may override PIN_HASH + theme)
-     2. checkWebhookMode() — if webhook.do is calling us, run headless and exit
+     1. loadConfig()     — who is signed in, theme, uptime method, uptime history
+     2. demo / static / signed-in branch (see below)
      3. PIN overlay     — shown by default in HTML; initDashboard() called on unlock
    ──────────────────────────────────────────────────────────────── */
 (async function bootstrap() {

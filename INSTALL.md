@@ -17,11 +17,15 @@ Upload the repository contents to a directory on your host. The marketing site f
 ```
 index.html  app.css  app.js  domains.list  .htaccess
 _ase.php  auth.php  config-write.php  uptime-write.php
-ssl-check.php  notify.php  update-stats.php
+ssl-check.php  http-check.php  notify.php  update-stats.php
 favicon.ico  favicon-32.png  favicon-48.png  apple-touch-icon.png  icon-192.png  icon-512.png
 ```
 
 The directory must be writable by PHP: ASE creates `ase_config.json`, `uptime.json` and a few small state files on its own. If your host does not use Apache, replicate the deny rules in `.htaccess` (see the README, Setup step 2).
+
+## Uptime method
+
+By default a domain is UP only when its DNS A record resolves and its web server answers over HTTP(S) (status below 500). Change this for all domains in the app under More → Settings → Uptime method: DNS only, HTTP only, or both. The HTTP check needs `http-check.php` and the PHP curl extension (PHP streams are used as a fallback). Scheduled checks from `update-stats.php` follow the same setting. Details in the [README](./README.md#uptime-method).
 
 ## 2. Choose your PIN
 

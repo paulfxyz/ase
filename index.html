@@ -23,7 +23,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
   2. domains.list (one domain per line) is the watchlist; a built-in
      list is the fallback.
   3. Each domain gets live DNS-over-HTTPS queries to Cloudflare
-     (A, NS, MX, TXT, DMARC). "UP" means the A record resolves.
+     (A, NS, MX, TXT, DMARC). "UP" means DNS (A) and HTTP both confirm (configurable in Settings: DNS only, HTTP only or both).
   4. SSL expiry comes from ssl-check.php (real TLS handshake), with
      crt.sh certificate-transparency as a fallback.
   5. update-stats.php, run by cron, keeps history and sends alerts
@@ -50,12 +50,12 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="app.css?v=6.1.1">
+    <link rel="stylesheet" href="app.css?v=6.2.0">
 </head>
 <body>
 <div class="demo-banner" id="demo-banner" role="note">
   <span class="demo-badge">LIVE DEMO</span>
-  <span>Read-only preview — 100 popular domains, real DNS + SSL checks, uptime recorded server-side.</span>
+  <span>Read-only preview — 100 popular domains, real DNS, HTTP and SSL checks, uptime recorded server-side.</span>
   <a href="https://github.com/paulfxyz/ase" target="_blank" rel="noopener">Self-host your own ↗</a>
   <a href="https://ase.so" target="_blank" rel="noopener">ase.so</a>
 </div>
@@ -210,6 +210,10 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export JSON
         </button>
+        <button class="dropdown-item" onclick="event.stopPropagation();closeHeaderMenu();openSettingsModal()" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Settings
+        </button>
         <button class="dropdown-item" onclick="event.stopPropagation();closeHeaderMenu();openWebhookModal()" role="menuitem">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
           Scheduled checks
@@ -273,7 +277,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
   <div class="stat-card">
     <div class="stat-label">Online</div>
     <div class="stat-value" id="stat-online" style="color:var(--green)">—</div>
-    <div class="stat-sub">Responding</div>
+    <div class="stat-sub" id="stat-online-sub">DNS + HTTP OK</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">SSL Valid</div>
@@ -288,7 +292,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
   <div class="stat-card">
     <div class="stat-label">Avg Latency</div>
     <div class="stat-value" id="stat-latency" style="color:var(--teal)">—</div>
-    <div class="stat-sub">DNS resolve</div>
+    <div class="stat-sub" id="stat-latency-sub">DNS resolve</div>
   </div>
 </div>
 
@@ -323,6 +327,13 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
 
   <button class="filter-btn" id="filter-alerts" onclick="toggleFilter('alerts')">⚠ Alerts only</button>
   <button class="filter-btn" id="filter-up" onclick="toggleFilter('up')">✓ Online only</button>
+
+  <div class="mode-seg" role="group" aria-label="Uptime method" title="How UP is decided, for all domains">
+    <span class="mode-seg-label">Uptime</span>
+    <button type="button" data-mode-btn="dns"  aria-pressed="false" onclick="setCheckMode('dns')">DNS</button>
+    <button type="button" data-mode-btn="http" aria-pressed="false" onclick="setCheckMode('http')">HTTP</button>
+    <button type="button" data-mode-btn="both" aria-pressed="true"  onclick="setCheckMode('both')">Both</button>
+  </div>
 </div>
 
 
@@ -394,7 +405,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
 ═════════════════════════════════════════════════════════════ -->
 <footer>
   <span>
-    <strong>ASE</strong> <span class="ver-tag">v6.1.1</span> — open-source monitor
+    <strong>ASE</strong> <span class="ver-tag">v6.2.0</span> — open-source monitor
     &nbsp;·&nbsp;
     <span class="mit-tag">MIT</span>
     &nbsp;·&nbsp;
@@ -408,11 +419,35 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
 <!-- ════════════════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════════════════ -->
-<script src="app.js?v=6.1.1"></script>
+<script src="app.js?v=6.2.0"></script>
 
 <!-- ════════════════════════════════════════════════════════════
      WEBHOOK MODAL
 ═════════════════════════════════════════════════════════════ -->
+<div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 class="modal-title">⚙ Settings</h3>
+      <button onclick="closeSettingsModal()" class="modal-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="set-title">Uptime method</div>
+      <p class="set-help">What must be true for a domain to show as <strong>UP</strong>. One choice for all domains.</p>
+      <label class="set-opt"><input type="radio" name="check-mode" value="dns" onchange="setCheckMode(this.value)">
+        <span><strong>DNS (A record) only</strong><small>The name resolves to an IP address. Fastest, but a dead web server still shows UP.</small></span></label>
+      <label class="set-opt"><input type="radio" name="check-mode" value="http" onchange="setCheckMode(this.value)">
+        <span><strong>HTTP only</strong><small>The web server answers on https:// (or http://) with a status below 500. 2xx, 3xx and 4xx count as answering, because many healthy sites reply 403 to bots.</small></span></label>
+      <label class="set-opt"><input type="radio" name="check-mode" value="both" checked onchange="setCheckMode(this.value)">
+        <span><strong>DNS and HTTP (recommended)</strong><small>UP only when both confirm. A domain whose DNS works but whose server is down shows DOWN.</small></span></label>
+      <p class="set-note" id="mode-note"></p>
+      <p class="set-note">The HTTP probe runs on your server (browsers cannot read status codes from other sites), follows no redirects and ignores certificate errors, because the SSL column reports expiry. Uptime history records whichever method was active at the time.</p>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeSettingsModal()" class="btn" style="width:100%">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="webhook-modal" class="modal-overlay" onclick="if(event.target===this)closeWebhookModal()">
   <div class="modal-card">
     <div class="modal-header">
@@ -433,7 +468,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
         2. Call <code>https://yourdomain.com/update-stats.php</code> with the header <code>X-ASE-Token: &lt;secret&gt;</code>
       </div>
       <p style="font-size:var(--text-xs);color:var(--text-faint);margin-top:var(--space-3);line-height:1.7">
-        Without <code>cron_token.key</code> the HTTP route is disabled. "UP" means the domain's DNS A record resolves — it is not an HTTP check.
+        Without <code>cron_token.key</code> the HTTP route is disabled. The cron job uses the same uptime method as the dashboard (Settings → Uptime method).
       </p>
     </div>
     <div class="modal-footer">

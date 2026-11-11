@@ -11,6 +11,17 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 👁 [6.2.0] — 2026-11-11
+
+- New: configurable uptime method. A domain is UP when DNS (A record) and HTTP both confirm (default), or by DNS only, or by HTTP only. One setting for all domains.
+- New: Settings dialog (More menu) and a DNS / HTTP / Both switch above the table. Saved on the server when signed in; browser-only in the demo and in static mode.
+- New: `http-check.php`, an authenticated server-side HTTP probe. HTTPS first with HTTP fallback, status below 500 counts as answering, no redirects followed, certificate errors ignored, public addresses only, 2-minute cache.
+- New: each status shows its signals, for example "DNS ✓ · HTTP 200". CSV and JSON exports include DNS, HTTP and HTTP status columns; JSON also records the uptime method.
+- Change: the default meaning of UP is stricter than in 6.1 (DNS and HTTP). Uptime history records whichever method was active at the time, so percentages mix methods if you switch.
+- Change: `update-stats.php` follows the same method; DOWN alert emails say which check failed.
+- Fix: `domains.stats` header and rows did not line up (SSL expiry and issuer were missing from rows).
+- Fix: a failed DNS-over-HTTPS request is no longer recorded as a domain outage in the uptime history.
+
 ## 👁 [6.1.1] — 2026-11-02
 
 - Docs: README rebuilt with logo, badges, screenshots (docs/img), quick start, shortcuts and FAQ.

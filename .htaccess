@@ -4,7 +4,7 @@
 # ── Never serve internal files ────────────────────────────────────────────────
 # Settings, secrets, rate-limit state, lock files and temp files. These are read
 # and written by the PHP scripts only.
-<FilesMatch "^(\.ase_config\.lock|ase_config\.json.*|auth_secret\.key|auth_rate\.json|cron_token\.key|notify_secret\.key|notify_rate\.json|cron_notify_sent\.json|ssl_cache\.json|uptime\.json.*|domains\.stats|\.ase_config\.lock|cron\.log|demo\.flag|_ase\.php)$">
+<FilesMatch "^(\.ase_config\.lock|ase_config\.json.*|auth_secret\.key|auth_rate\.json|cron_token\.key|notify_secret\.key|notify_rate\.json|cron_notify_sent\.json|ssl_cache\.json|http_cache\.json|uptime\.json.*|domains\.stats|\.ase_config\.lock|cron\.log|demo\.flag|_ase\.php)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

@@ -41,8 +41,9 @@
  * ║    Without that file the HTTP route is disabled.             ║
  * ║  Prefer the header: query strings end up in access logs.     ║
  * ║                                                              ║
- * ║  NOTE: "UP" means the domain's DNS A record resolves. It is  ║
- * ║  not an HTTP check.                                          ║
+ * ║  UP is decided by the Uptime method setting (dns / http /    ║
+ * ║  both, default both): DNS = A record resolves; HTTP = the    ║
+ * ║  web server answers with a status below 500.                 ║
  * ╚══════════════════════════════════════════════════════════════╝
  */
 
@@ -55,7 +56,7 @@ define('MAX_DOMAINS',   200);   // safety cap — prevents runaway cron
 define('NOTIFY_PHP',    __DIR__ . '/notify.php');   // email notification endpoint
 define('CONFIG_FILE',   __DIR__ . '/ase_config.json'); // settings (for notification check)
 define('NOTIFY_SENT',   __DIR__ . '/cron_notify_sent.json'); // deduplication tracker
-define('VERSION', '6.1.1');
+define('VERSION', '6.2.0');
 define('UPTIME_FILE',   __DIR__ . '/uptime.json');  // persistent uptime history
 
 require_once __DIR__ . '/_ase.php';
@@ -301,6 +302,19 @@ function get_ssl_expiry(string $domain, int $timeout = 5): ?array {
 
 // ── Step 3: Check each domain ──────────────────────────────────
 
+// v6.2.0: how UP is decided — dns | http | both (Settings → Uptime method)
+$checkMode = ase_check_mode();
+log_line("ℹ  Uptime method: " . ['dns' => 'DNS (A record) only', 'http' => 'HTTP only', 'both' => 'DNS and HTTP must both confirm'][$checkMode]);
+
+// HTTP probes for every domain up front (parallel, 20 at a time)
+$httpProbe = [];
+if ($checkMode !== 'dns') {
+    foreach (array_chunk($domains, 20) as $chunk) {
+        $httpProbe += ase_http_probe_many($chunk);
+    }
+    log_line("✓  HTTP probes done for " . count($httpProbe) . " domains");
+}
+
 $results = [];
 $onlineCount = 0;
 $alertCount  = 0;
@@ -314,15 +328,20 @@ foreach ($domains as $rank => $domain) {
     // ── A record: uptime check ──
     $aRecords = dns_query($domain, DNS_A);
     $latencyMs = round((microtime(true) - $t0) * 1000);
-    $status    = !empty($aRecords) ? 'UP' : 'DOWN';
+    $dnsUp     = !empty($aRecords);
+    $probe     = $httpProbe[strtolower($domain)] ?? null;
+    $httpUp    = $probe ? (bool)$probe['ok'] : null;
+    $httpCode  = $probe['status'] ?? null;
+    $isUp      = $checkMode === 'dns' ? $dnsUp : ($checkMode === 'http' ? ($httpUp === true) : ($dnsUp && $httpUp === true));
+    $status    = $isUp ? 'UP' : 'DOWN';
     if ($status === 'UP') $onlineCount++;
 
     // ── SSL certificate expiry ──
     // Connect to port 443 and read the peer cert.
-    // Only run if domain is UP (avoids long timeouts on down domains).
+    // Only run if the domain resolves (avoids long timeouts on dead names).
     $sslExpiry = '';
     $sslIssuer = '';
-    if ($status === 'UP') {
+    if ($dnsUp) {
         $ssl = get_ssl_expiry($domain, 5);
         if ($ssl) {
             $sslExpiry = $ssl['expiry'];
@@ -360,6 +379,10 @@ foreach ($domains as $rank => $domain) {
         'rank'       => $rank1,
         'domain'     => $domain,
         'status'     => $status,
+        'dns_up'     => $dnsUp,
+        'http_up'    => $httpUp,
+        'http_status'=> $httpCode,
+        'http_ms'    => $probe['ms'] ?? null,
         'latency_ms' => $latencyMs,
         'ns'         => $nsProvider,
         'ns_raw'     => $nsRaw,
@@ -374,7 +397,7 @@ foreach ($domains as $rank => $domain) {
         'timestamp'  => $timestamp,
     ];
 
-    log_line("       → $status | {$latencyMs}ms | SSL=" . ($sslExpiry ?: '—') . " ($sslIssuer) | NS=$nsProvider | MX=$mxProvider | DMARC=$dmarc | SPF=" . ($spf ?: '—'));
+    log_line("       → $status (DNS " . ($dnsUp ? 'ok' : 'fail') . ($checkMode === 'dns' ? '' : ' / HTTP ' . ($httpCode ?: 'fail')) . ") | {$latencyMs}ms | SSL=" . ($sslExpiry ?: '—') . " ($sslIssuer) | NS=$nsProvider | MX=$mxProvider | DMARC=$dmarc | SPF=" . ($spf ?: '—'));
 }
 
 log_line('');
@@ -388,7 +411,7 @@ log_line('');
  * CSV format matches what the browser's "Export CSV" button produces,
  * so the file can be opened in Excel / Google Sheets directly.
  */
-$csvHeaders = ['Timestamp','Rank','Domain','Status','Latency (ms)',
+$csvHeaders = ['Timestamp','Rank','Domain','Status','DNS','HTTP','HTTP Status','Latency (ms)',
                'SSL Expiry','SSL Issuer',
                'NS Provider','NS Records','MX Provider','MX Records',
                'DMARC','DMARC Record','SPF','SPF Record'];
@@ -401,7 +424,12 @@ foreach ($results as $r) {
         (string)$r['rank'],
         $r['domain'],
         $r['status'],
+        $r['dns_up'] ? 'ok' : 'fail',
+        $r['http_up'] === null ? '' : ($r['http_up'] ? 'ok' : 'fail'),
+        (string)($r['http_status'] ?? ''),
         (string)$r['latency_ms'],
+        $r['ssl_expiry'],
+        $r['ssl_issuer'],
         $r['ns'],
         $r['ns_raw'],
         $r['mx'],
@@ -591,14 +619,21 @@ function cron_mark_sent(string $domain, string $type, array &$sent): void {
         $dmarc     = $r['dmarc']      ?? '';
         $spf       = $r['spf']        ?? '';
 
-        // DOWN
+        // DOWN — explain which check failed
+        $dnsUp = $r['dns_up'] ?? null; $httpUp = $r['http_up'] ?? null;
+        if ($dnsUp === false)                         $downDetail = 'A record lookup returned no results — the domain is not resolving.';
+        elseif ($httpUp === false && $dnsUp === true) $downDetail = 'DNS resolves, but the web server did not answer correctly'
+            . (!empty($r['http_status']) ? ' (HTTP ' . (int)$r['http_status'] . ')' : ' (no response)') . '.';
+        elseif ($httpUp === false)                    $downDetail = 'The web server did not answer correctly'
+            . (!empty($r['http_status']) ? ' (HTTP ' . (int)$r['http_status'] . ')' : ' (no response)') . '.';
+        else                                          $downDetail = 'The domain failed its uptime check.';
         if ($status === 'DOWN' && cron_should_notify($domain, 'down', $sent)) {
             $issues[] = [
                 'domain'     => $domain,
                 'type'       => 'down',
                 'severity'   => 'critical',
                 'label'      => 'Domain Unreachable',
-                'detail'     => 'A record lookup returned no results — domain is not resolving.',
+                'detail'     => $downDetail,
                 'latency'    => null,
                 'ssl_expiry' => $sslExpiry ?: null,
                 'ssl_days'   => $sslDays,

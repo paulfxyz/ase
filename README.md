@@ -41,7 +41,9 @@
   <a href="https://ase.live"><img src="docs/img/dashboard-light.png" alt="ASE dashboard: 100 domains with live status, latency, SSL expiry, nameservers, MX, DMARC and SPF" width="900"></a>
 </p>
 
-> **v6.1.0 is an audit release.** The code, this README and the landing page were re-checked against what the software really does, several bugs and security gaps were fixed, and a few claims were corrected. See [Audit Notes](#audit-notes-v610).
+> **v6.2.0 adds a configurable uptime method:** a domain is UP only when both its DNS (A record) and an HTTP request confirm, or you choose DNS only or HTTP only for every domain. See [Uptime method](#uptime-method).
+
+> **v6.1.0 was an audit release.** The code, this README and the landing page were re-checked against what the software really does, several bugs and security gaps were fixed, and a few claims were corrected. See [Audit Notes](#audit-notes-v610).
 
 > **Built with AI, honestly.** ASE was vibe-coded with AI assistance and then audited, including an independent review of the authentication layer by a frontier model. It is a personal-scale tool, not a hardened enterprise product. Read the [Security Model](#security-model) before exposing it to the internet.
 
@@ -51,8 +53,8 @@
 
 | | |
 |---|---|
-| **What it checks** | A record (DNS reachability), NS provider, MX provider, DMARC policy, SPF policy, real TLS certificate expiry and issuer, latency |
-| **How it checks** | Live DNS-over-HTTPS from the browser, server-side TLS handshakes in PHP, a scheduled worker for 24/7 history |
+| **What it checks** | Uptime (DNS A record, HTTP response, or both; your choice), NS provider, MX provider, DMARC policy, SPF policy, real TLS certificate expiry and issuer, latency |
+| **How it checks** | Live DNS-over-HTTPS from the browser, server-side HTTP requests and TLS handshakes in PHP, a scheduled worker for 24/7 history |
 | **What you get** | Sortable dashboard, expiry alerts, cumulative uptime history, email digests via Resend, CSV and JSON export |
 | **What it needs** | Any Apache host with PHP 7.4+ (shared hosting is fine). No database, no npm, no build |
 | **Where your data lives** | On your server. No accounts, no analytics |
@@ -99,7 +101,7 @@ Open your site, sign in, and edit `domains.list` or use **Add Domain**. The full
 
 ## FAQ
 
-**Is "UP" an HTTP check?** No. It means the domain's A record resolves. An HTTP status check is on the [roadmap](#roadmap).
+**What does "UP" mean?** By default (since 6.2) both checks must confirm: the A record resolves and the web server answers over HTTP(S) with a status below 500. In Settings (or with the DNS / HTTP / Both switch above the table) you can count only DNS or only HTTP. The choice applies to every domain. Details in [Uptime method](#uptime-method).
 
 **Does it phone home?** No. Your browser contacts Cloudflare DNS-over-HTTPS, Google Fonts and the Google favicon service; the server may fall back to crt.sh. Nothing is sent to the author.
 
@@ -136,6 +138,7 @@ Open your site, sign in, and edit `domains.list` or use **Add Domain**. The full
    - [AES-256-GCM Key Encryption](#aes-256-gcm-key-encryption)
    - [Uptime Persistence Evolution](#uptime-persistence-evolution)
 4. [Lessons Learned](#lessons-learned)
+   - [Uptime method](#uptime-method)
    - [Audit Notes (v6.1.0)](#audit-notes-v610)
 5. [Building with AI](#building-with-ai)
 6. [Tech Stack Decisions](#tech-stack-decisions)
@@ -197,7 +200,7 @@ ASE monitors any list of domains and reports on five signals simultaneously:
 
 | Signal | What it tells you |
 |--------|-------------------|
-| **Uptime** | Is the domain resolving? How fast? (DNS round-trip latency in ms) |
+| **Uptime** | Does the domain resolve (DNS A record) and does its web server answer (HTTP)? Configurable: DNS only, HTTP only, or both. Latency in ms |
 | **SSL Expiry** | When does the certificate expire? Days remaining, colour-coded. Issuer detected (Let's Encrypt, DigiCert, etc.) |
 | **Nameserver Provider** | Who is providing DNS? (Cloudflare, AWS Route53, Azure, Google, SiteGround, custom) |
 | **Mail Provider** | Who handles email? (Google Workspace, Microsoft 365, ProtonMail, Amazon SES, Mimecast, etc.) |
@@ -258,6 +261,37 @@ ASE monitors any list of domains and reports on five signals simultaneously:
 
 ---
 
+## Uptime method
+
+ASE can decide whether a domain is UP in three ways. One setting, applied to every domain, to the dashboard, to the scheduled worker and to alert emails.
+
+| Method | A domain is UP when | Good for |
+|---|---|---|
+| **DNS and HTTP** (default) | The A record resolves **and** the web server answers | Most sites: catches a dead server behind a working name |
+| **DNS (A record) only** | The A record resolves | Domains with no website (mail-only, parked), or when you only care about DNS |
+| **HTTP only** | The web server answers | Sites where DNS is managed elsewhere and you only want to know if it responds |
+
+Change it from the **Settings** dialog (More menu) or from the DNS / HTTP / Both switch above the table. When you are signed in the choice is saved on the server in `ase_config.json`; in the read-only demo and in static mode it is stored in your browser only (`localStorage`).
+
+How the HTTP check works (`http-check.php`, run on your server because browsers cannot read the status code of another site):
+
+- It requests `https://domain/` first. Only if the HTTPS connection itself fails does it try `http://domain/`.
+- Status below 500 counts as answering. 2xx, 3xx and 4xx pass, because many healthy sites return 403 to automated clients. 5xx, timeouts and refused connections count as down.
+- Redirects are not followed: a 301 means the server answered. The final destination is not checked.
+- Certificate errors do not fail the check: the SSL column already reports expiry and a separate problem should not hide behind a DOWN.
+- Requests use HEAD and fall back to GET when HEAD is rejected (400, 405, 501). The timeout is 6 seconds.
+- Only public addresses are probed. The hostname is resolved once, validated, and the connection is pinned to that IP (SSRF guard). Sign-in is required; the demo only answers for its watchlist.
+- Results are cached for 2 minutes in `http_cache.json`.
+
+Things to know:
+
+- Uptime history (`uptime.json`) records whichever method was active when each check ran, so percentages mix methods if you switch.
+- Without PHP (static mode) the browser can only test reachability with an opaque `no-cors` request, which cannot see status codes. The status line then shows "reachable".
+- While HTTP probes are still running, the status line shows "HTTP …" for the rows not yet answered.
+- The HTTP check measures your server's view of the site, not what visitors in other regions see.
+
+---
+
 ## Audit Notes (v6.1.0)
 
 Before publishing 6.1.0 the whole project was reviewed: the code was read end to end, the public claims were checked one by one, the server layer was tested with a local PHP server and a real browser, and the new authentication code was reviewed by an independent frontier model (OpenAI GPT-6.1 Sol Pro via OpenRouter). This section lists what that found. It is deliberately blunt.
@@ -284,7 +318,7 @@ Before publishing 6.1.0 the whole project was reviewed: the code was read end to
 | "Serverless" | The full feature set needs PHP. Without PHP the dashboard still runs in a static mode (no sign-in, no history) |
 | "No cookies" | `ase_sid` (HttpOnly sign-in), `ase-lang`, `ase-theme`, and `ase_uptime` (local uptime fallback) |
 | "Automate with cron-job.org via `webhook.do`" | Never worked. See above |
-| "Uptime" | "UP" means the A record resolves. It is a DNS check, not an HTTP probe |
+| "Uptime" | Until 6.1, "UP" only meant the A record resolves (a DNS check, not an HTTP probe). Since 6.2 it defaults to DNS and HTTP together, and is configurable ([Uptime method](#uptime-method)) |
 | "PIN protection" | In 6.0 and earlier the PIN was checked in the browser. In 6.1 it is checked on the server, but a 6-digit PIN is still a weak secret (see [Security Model](#security-model)) |
 | "Your PIN is the encryption passphrase" (landing page) | The Resend key is encrypted with a random server secret (`notify_secret.key`), not with the PIN |
 | NS / MX / DMARC / SPF of the bundled top-100 list are "live" | They are a snapshot; only A records and SSL are checked live for those rows. Domains you add get the full live scan, and `update-stats.php` checks everything live on the server |
@@ -1710,13 +1744,14 @@ GPL was considered (requires derivative works to also be open-source) but reject
 | `auth.php` | Server-side sign-in, sign-out, set/change PIN. Rate limited. CLI: `php auth.php set-pin 482915` |
 | `_ase.php` | Shared helpers: sessions, rate limiter, cron token, demo flag, SSRF guard. Not reachable over HTTP |
 | `config-write.php` | Settings read/write (signed-in only; never returns the PIN hash or API-key ciphertext) |
+| `http-check.php` | HTTP reachability probe (HTTPS first, HTTP fallback), batch mode, 2 min cache, sign-in required, public addresses only |
 | `uptime-write.php` | Cumulative uptime history (signed-in or cron token) |
 | `ssl-check.php` | Real TLS handshake, batch mode, 6 h cache, sign-in required, public addresses only |
 | `notify.php` | Email digests via Resend; AES-256-GCM key decrypt; 10 emails/hour limit |
-| `update-stats.php` | The scheduled worker: DNS + SSL checks, writes `domains.stats`, `domains.json`, `uptime.json`, sends alerts. CLI or token |
+| `update-stats.php` | The scheduled worker: DNS + HTTP + SSL checks, writes `domains.stats`, `domains.json`, `uptime.json`, sends alerts. CLI or token |
 | `domains.list` | Watchlist, one domain per line |
 | `.htaccess` | HTTPS, method filter, security headers, blocks secrets and state files (Apache 2.2 and 2.4) |
-| Runtime files (created, never committed) | `ase_config.json`, `auth_secret.key`, `auth_rate.json`, `notify_secret.key`, `notify_rate.json`, `cron_token.key` (you create it), `uptime.json`, `ssl_cache.json`, `domains.stats`, `domains.json`, `demo.flag` (demo only) |
+| Runtime files (created, never committed) | `ase_config.json`, `auth_secret.key`, `auth_rate.json`, `notify_secret.key`, `notify_rate.json`, `cron_token.key` (you create it), `uptime.json`, `ssl_cache.json`, `http_cache.json`, `domains.stats`, `domains.json`, `demo.flag` (demo only) |
 
 ### index.html
 
@@ -1796,7 +1831,7 @@ Or download the ZIP from [GitHub Releases](https://github.com/paulfxyz/ase/relea
 
 ### Step 2 — Upload
 
-Upload the contents of the repository (except `landing.html`, `i18n.js`, `avatar.jpg` and the docs, which belong to the marketing site) to a directory on your host. Keep `.htaccess`. If you do not use Apache, replicate its rules: deny access to `ase_config.json`, `*.key`, `auth_rate.json`, `notify_rate.json`, `ssl_cache.json`, `uptime.json`, `cron_notify_sent.json`, `.ase_config.lock` and `_ase.php`.
+Upload the contents of the repository (except `landing.html`, `i18n.js`, `avatar.jpg` and the docs, which belong to the marketing site) to a directory on your host. Keep `.htaccess`. If you do not use Apache, replicate its rules: deny access to `ase_config.json`, `*.key`, `auth_rate.json`, `notify_rate.json`, `ssl_cache.json`, `http_cache.json`, `uptime.json`, `cron_notify_sent.json`, `.ase_config.lock` and `_ase.php`.
 
 ### Step 3 — Choose your PIN
 
@@ -1955,7 +1990,7 @@ ASE is a single-user dashboard for a small number of domains. It is built to be 
 - **Lockout resistance.** The install-wide cap means someone can deliberately burn the budget and temporarily block your sign-in. Delete `auth_rate.json` to reset it, or sign in from an existing session.
 - **Protect against a compromised server.** Anyone with filesystem access reads everything.
 - **Multi-user access control.** One PIN, one config, one notification address.
-- **HTTP-level uptime.** "UP" means the A record resolves.
+- **Deep HTTP monitoring.** The HTTP check is one request per domain: no content matching, no multi-step checks, no redirect following, no multi-region probing. A server-side probe sees your site from your server's network only.
 - **Hide your watchlist.** `domains.list`, `domains.json` and `domains.stats` are served as static files so the dashboard can read them. Do not put secrets in domain names.
 - **Run anywhere.** Behind a reverse proxy, make sure `X-Forwarded-Proto` is set only by your proxy, because it decides whether the session cookie is marked Secure.
 
@@ -2133,6 +2168,10 @@ Open a GitHub issue with:
 ## Version History
 
 Full history with technical change notes.
+
+### v6.2.0 — 2026-11-11 — Configurable uptime method
+
+UP can now be based on DNS (A record), HTTP, or both, chosen once for all domains. The default is both, which changes what UP means compared with 6.1 (see [Uptime method](#uptime-method)). New `http-check.php`, a Settings dialog, a DNS / HTTP / Both switch above the table, a "DNS ✓ · HTTP 200" line under every status, DNS and HTTP columns in the CSV/JSON exports, and `update-stats.php` honours the same method. Also fixes `domains.stats`, whose header and rows did not line up.
 
 ### v6.1.1 — 2026-11-02 — Docs and polish
 
@@ -2333,7 +2372,7 @@ Suggestions and contributions welcome. Nothing here is committed — it's a list
 
 - [ ] **DNSSEC validation** — detect whether DNSSEC is enabled and whether the chain validates
 - [ ] **IPv6 (AAAA record)** — show whether the domain has an AAAA record alongside the A record
-- [ ] **HTTP status check** — check the HTTP response code (today "UP" only means the A record resolves) to detect sites that resolve but return 500 or 404
+- [x] **HTTP status check** — shipped in 6.2.0 as a configurable uptime method (DNS only, HTTP only, or both)
 - [ ] **Ping history graph** — latency over time chart (sparkline expanded to full graph in hover/modal)
 - [ ] **CAA record check** — show Certificate Authority Authorization records (which CAs are allowed to issue certs)
 

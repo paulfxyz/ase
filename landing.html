@@ -2151,7 +2151,7 @@ footer {
     <div class="hero-eyebrow">
       <span class="eyebrow-dot"></span>
       <span data-i18n="hero_eyebrow">Introducing ASE · Domain Guardian</span>
-      <span class="eyebrow-badge" data-i18n="hero_badge">v6.1</span>
+      <span class="eyebrow-badge" data-i18n="hero_badge">v6.2</span>
     </div>
 
     <!-- Title -->
@@ -2307,7 +2307,7 @@ footer {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="feature-title" data-i18n="feat_1_title">Live uptime monitoring</div>
-        <div class="feature-body" data-i18n="feat_1_body">A-record checks via Cloudflare DoH. 5 parallel queries per domain. Batch-of-5 scanning to avoid DoH flood detection. Latency to the millisecond. Uptime history persisted server-side.</div>
+        <div class="feature-body" data-i18n="feat_1_body">Two independent checks per domain: a DNS (A record) lookup via Cloudflare DoH and an HTTP request from your server. A domain is online only when both confirm, or pick DNS only or HTTP only in Settings.</div>
       </div>
 
       <div class="feature-card reveal reveal-delay-2">
@@ -2678,7 +2678,7 @@ footer {
         </div>
         <div class="auto-step-content">
           <div class="auto-step-title">ASE checks everything</div>
-          <div class="auto-step-desc">Each run checks every domain on the server: A record (DNS reachability, not an HTTP probe), NS, MX, DMARC, SPF and the TLS certificate. No browser tab needs to be open.</div>
+          <div class="auto-step-desc">Each run checks every domain on the server: A record (DNS) and an HTTP request (your uptime method is configurable), plus NS, MX, DMARC, SPF and the TLS certificate. No browser tab needs to be open.</div>
         </div>
       </div>
 
@@ -2755,7 +2755,7 @@ footer {
         <span data-i18n="cta_btn_demo">⚡ See Live Demo</span>
       </a>
       <a href="https://github.com/paulfxyz/ase/releases/latest" class="btn btn-primary btn-lg" target="_blank" rel="noopener">
-        <span data-i18n="cta_btn_dl">↓ Download v6.1.1</span>
+        <span data-i18n="cta_btn_dl">↓ Download v6.2.0</span>
       </a>
     </div>
   </div>
@@ -2814,7 +2814,7 @@ footer {
       </div>
       <div class="version-row">
         <div class="version-dot active"></div>
-        <div class="version-label"><strong>v6.1</strong> — Server-side sign-in · read-only demo · audited claims</div>
+        <div class="version-label"><strong>v6.2</strong> — DNS + HTTP uptime · server-side sign-in · read-only demo</div>
       </div>
     </div>
   </div>
@@ -3019,7 +3019,7 @@ document.querySelectorAll('.copy-btn').forEach(function(btn) {
 
 
 <!-- Language Picker + i18n Engine -->
-<script src="i18n.js?v=6.1.1"></script>
+<script src="i18n.js?v=6.2.0"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════
    ASE I18N ENGINE

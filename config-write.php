@@ -34,12 +34,13 @@ if ($method === 'GET') {
         ase_out(['theme' => $cfg['theme'] ?? null, 'authenticated' => false]);
     }
     if ($demo) {                       /* public demo: theme only, never emails or keys */
-        ase_out(['theme' => $cfg['theme'] ?? null, 'demo' => true]);
+        ase_out(['theme' => $cfg['theme'] ?? null, 'demo' => true, 'check_mode' => ase_check_mode($cfg)]);
     }
     $safe = $cfg;
     unset($safe['pin_hash'], $safe['pin_pw']);
     $safe['notify_api_key_set'] = !empty($safe['notify_api_key_enc']);
     unset($safe['notify_api_key_enc']);
+    $safe['check_mode']    = ase_check_mode($cfg);
     $safe['authenticated'] = true;
     $safe['pin_default']   = ase_pin_is_default($cfg);
     ase_out($safe);
@@ -63,6 +64,17 @@ if ($method === 'POST') {
     /* Load existing config to merge into */
     $config = ase_config();
     $changed = false;
+
+    /* ── Uptime method (v6.2.0): dns | http | both — applies to every domain ── */
+    if (isset($posted['check_mode'])) {
+        if (!in_array($posted['check_mode'], ['dns', 'http', 'both'], true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'check_mode must be dns, http or both']);
+            exit;
+        }
+        $config['check_mode'] = $posted['check_mode'];
+        $changed = true;
+    }
 
     /* ── Theme ── */
     if (isset($posted['theme'])) {
