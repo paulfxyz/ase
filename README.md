@@ -64,8 +64,11 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/img/dashboard-dark.png" alt="Dark mode dashboard"><br><sub><b>Dark mode.</b> Same data, easier on the eyes. The banner lists the six most urgent certificates.</sub></td>
+    <td width="50%"><img src="docs/img/dashboard-dark.png" alt="Dark mode dashboard"><br><sub><b>Dark mode.</b> Same data, easier on the eyes. Each status shows both signals, for example "DNS ✓ · HTTP ✓ 301".</sub></td>
     <td width="50%"><img src="docs/img/tooltip.png" alt="Tooltip showing the raw name server records for baidu.com"><br><sub><b>Raw records on hover.</b> Every NS, MX, DMARC and SPF badge explains itself with the underlying DNS record.</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/img/settings.png" alt="Settings dialog with the uptime method: DNS only, HTTP only, or both"><br><sub><b>Uptime method.</b> One setting for all domains: DNS (A record) only, HTTP only, or both (default). The same choice is available as the DNS / HTTP / Both switch above the table.</sub></td>
   </tr>
   <tr>
     <td width="50%" align="center"><img src="docs/img/dashboard-mobile.png" alt="Mobile dashboard" width="300"><br><sub><b>Mobile first.</b> Stat cards and the table reflow for phones.</sub></td>
@@ -288,7 +291,7 @@ Things to know:
 - Uptime history (`uptime.json`) records whichever method was active when each check ran, so percentages mix methods if you switch.
 - Without PHP (static mode) the browser can only test reachability with an opaque `no-cors` request, which cannot see status codes. The status line then shows "reachable".
 - While HTTP probes are still running, the status line shows "HTTP …" for the rows not yet answered.
-- The HTTP check measures your server's view of the site, not what visitors in other regions see.
+- The HTTP check measures your server's view of the site, not what visitors in other regions see. Example: on the public demo, `instagram.com` (the apex name) does not complete a TLS handshake from the hosting network, so it shows "DNS ✓ · HTTP ✗ no answer" and counts as DOWN in the default mode, while `www.instagram.com` answers. Switch to DNS only if that is not what you want to measure.
 
 ---
 
