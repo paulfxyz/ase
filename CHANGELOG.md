@@ -11,6 +11,13 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## 👁 [6.2.1] — 2026-11-12
+
+- Fix: latency now follows the uptime method and its label. In 6.2.0, switching from HTTP to Both kept the HTTP number under a "DNS resolve" label. DNS only shows the DNS lookup time; HTTP only and Both show the HTTP response time measured by your server.
+- Change: failed probes have no latency (a dash) instead of a timeout value, so averages are not distorted.
+- New: hovering a latency value shows both the DNS and HTTP times; a tooltip on the column header and the card explains the current rule.
+- New: CSV and JSON exports (and `domains.stats` / `domains.json` from the cron script) include `DNS (ms)` and `HTTP (ms)`; `update-stats.php` applies the same latency rule.
+
 ## 👁 [6.2.0] — 2026-11-11
 
 - New: configurable uptime method. A domain is UP when DNS (A record) and HTTP both confirm (default), or by DNS only, or by HTTP only. One setting for all domains.

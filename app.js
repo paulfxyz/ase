@@ -138,7 +138,7 @@ async function aseSignOut() {
    ASE_DEMO is set by the early inline script in index.html and is true
    ONLY on the public demo host (ase.live). Self-hosted installs are never
    affected: they keep the PIN gate and full read/write behaviour.        */
-var ASE_VERSION = '6.2.0';
+var ASE_VERSION = '6.2.1';
 var IS_DEMO = (window.ASE_DEMO === true);
 var ASE_BACKEND = false;   /* true when auth.php answers (PHP host) */
 var ASE_AUTHED  = false;   /* true when the server accepted our session cookie */
@@ -889,7 +889,7 @@ function renderTable() {
           uptimeTooltipHTML(d.domain, st.up) +
         '</div>' +
       '</div></td>' +
-      '<td class="latency ' + latClass(st.latency) + '">' + latStr + '</td>' +
+      '<td class="latency ' + latClass(st.latency) + '" title="DNS ' + (st.dnsMs != null ? st.dnsMs + ' ms' : '—') + ' · HTTP ' + (st.httpMs != null ? st.httpMs + ' ms' : '—') + '">' + latStr + '</td>' +
       '<td><div class="ssl-cell"><span class="ssl-days ' + sslClass(days) + '">' + sslStr + '</span>' + leBadge + '</div></td>' +
       '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + nsBadgeCls(d.ns) + '">'   + escHtml(d.ns)    + '</span>' + tooltipHTML(d.domain,'ns')    + '</div></td>' +
       '<td class="info-cell"><div class="tooltip-host"><span class="info-badge ' + mxBadgeCls(d.mxType) + '">'+ escHtml(d.mxType)+ '</span>' + tooltipHTML(d.domain,'mx')    + '</div></td>' +
@@ -1378,12 +1378,24 @@ function combineUp(dns, http, mode) {
   return (dns === true && http === true) ? true : null;    /* null = still waiting */
 }
 
+/* Latency shown for a row depends on the uptime method, so the number always
+   matches the label under the "Avg latency" card:
+     DNS only  -> DNS lookup time (browser to Cloudflare DNS-over-HTTPS)
+     HTTP only -> HTTP response time measured by your server (connect + TLS + first response)
+     Both      -> HTTP response time (what a visitor waits for); DNS time if HTTP has no answer yet
+   Failed probes have no latency (null) instead of a timeout value. */
+function latencyFor(st) {
+  if (CHECK_MODE === 'dns')  return st.dnsMs != null ? st.dnsMs : null;
+  if (CHECK_MODE === 'http') return st.httpMs != null ? st.httpMs : null;
+  return st.httpMs != null ? st.httpMs : (st.http == null && st.dnsMs != null ? st.dnsMs : null);
+}
+
 /** Recompute st.up from the stored signals and record the result in history */
 function applyResult(domain, skipUptime) {
   var st = domainState[domain];
   if (!st) return;
   st.up = combineUp(st.dns, st.http, CHECK_MODE);
-  if (CHECK_MODE === 'http' && st.httpMs != null) st.latency = st.httpMs;
+  st.latency = latencyFor(st);
   if (st.up === null) return;
   st.history.push({ up: st.up, latency: st.latency });
   if (st.history.length > 20) st.history.shift();
@@ -1396,7 +1408,7 @@ function recomputeAllUp() {
     var st = domainState[d.domain];
     if (!st) return;
     st.up = combineUp(st.dns, st.http, CHECK_MODE);
-    if (CHECK_MODE === 'http' && st.httpMs != null) st.latency = st.httpMs;
+    st.latency = latencyFor(st);
   });
 }
 
@@ -1487,7 +1499,12 @@ function syncCheckModeUI() {
   var r = document.querySelector('input[name="check-mode"][value="' + CHECK_MODE + '"]');
   if (r) r.checked = true;
   var sub = document.getElementById('stat-latency-sub');
-  if (sub) sub.textContent = CHECK_MODE === 'http' ? 'HTTP response' : 'DNS resolve';
+  if (sub) sub.textContent = CHECK_MODE === 'dns' ? 'DNS lookup' : 'HTTP response';
+  var lt = CHECK_MODE === 'dns' ? 'Latency = DNS lookup time (browser to Cloudflare DNS-over-HTTPS).'
+         : CHECK_MODE === 'http' ? 'Latency = HTTP response time measured by your server. Failed requests are left out.'
+         : 'Latency = HTTP response time measured by your server (DNS lookup time only until HTTP answers). Hover a value to see both.';
+  var th = document.getElementById('th-latency'); if (th) th.title = lt;
+  var card = document.getElementById('stat-latency'); if (card && card.parentNode) card.parentNode.title = lt;
   var on2 = document.getElementById('stat-online-sub');
   if (on2) on2.textContent = CHECK_MODE === 'dns' ? 'Resolving' : CHECK_MODE === 'http' ? 'Answering HTTP' : 'DNS + HTTP OK';
   var note = document.getElementById('mode-note');
@@ -1526,8 +1543,10 @@ async function checkDomain(domain, fullScan, deferHttp) {
   try {
     var aRecords = await dohQuery(domain, 'A');
     st.dns     = aRecords.length > 0;
-    st.latency = Date.now() - t0;
+    st.dnsMs   = Date.now() - t0;
+    st.latency = (CHECK_MODE === 'http') ? null : st.dnsMs;
   } catch(e) {
+    st.dnsMs   = null;
     st.dns     = false;      /* resolver unreachable: shown as DOWN but not recorded in uptime history */
     st.latency = null;
     dnsErr     = true;
@@ -1538,7 +1557,7 @@ async function checkDomain(domain, fullScan, deferHttp) {
   var wantHttp = (CHECK_MODE === 'http') || (CHECK_MODE === 'both' && st.dns === true);
   if (wantHttp) {
     var hp = httpProbe(domain).then(function(r) {
-      st.http = !!r.ok; st.httpStatus = r.status || null; st.httpMs = r.ms; st.httpErr = r.error || null; st.httpBrowser = !!r.browser;
+      st.http = !!r.ok; st.httpStatus = r.status || null; st.httpMs = (r.ok && r.ms != null) ? r.ms : null; st.httpErr = r.error || null; st.httpBrowser = !!r.browser;
       applyResult(domain, dnsErr && CHECK_MODE !== 'http');
     });
     if (deferHttp) {
@@ -2079,7 +2098,7 @@ function confirmAddDomains() {
 function buildStatsCSV() {
   var now = new Date().toISOString();
   var headers = ['Timestamp','Rank','Domain','Category','Status','DNS','HTTP','HTTP Status',
-                 'Latency (ms)','SSL Days','NS','MX','DMARC','SPF'];
+                 'Latency (ms)','DNS (ms)','HTTP (ms)','SSL Days','NS','MX','DMARC','SPF'];
   var rows = DOMAINS.map(function(d) {
     var st   = domainState[d.domain] || {};
     var days = daysUntil(d.sslExpiry);
@@ -2090,6 +2109,8 @@ function buildStatsCSV() {
       st.http===true ? 'ok' : st.http===false ? 'fail' : '',
       st.httpStatus || '',
       (st.latency!=null) ? st.latency : '',
+      (st.dnsMs!=null) ? st.dnsMs : '',
+      (st.httpMs!=null) ? st.httpMs : '',
       days!==null ? days : '',
       d.ns, d.mxType, d.dmarc, d.spf
     ].map(function(v) {
@@ -3300,6 +3321,8 @@ function exportJSON() {
       http_up: (st.http === undefined) ? null : st.http,
       http_status: st.httpStatus || null,
       latency_ms: (st.latency != null) ? st.latency : null,
+      dns_ms: (st.dnsMs != null) ? st.dnsMs : null,
+      http_ms: (st.httpMs != null) ? st.httpMs : null,
       ssl_days_left: days !== null ? days : null,
       ns: d.ns, mx: d.mxType, dmarc: d.dmarc, spf: d.spf,
       uptime_pct: (typeof uptimePercent === 'function') ? uptimePercent(d.domain) : null

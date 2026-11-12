@@ -41,7 +41,7 @@
   <a href="https://ase.live"><img src="docs/img/dashboard-light.png" alt="ASE dashboard: 100 domains with live status, latency, SSL expiry, nameservers, MX, DMARC and SPF" width="900"></a>
 </p>
 
-> **v6.2.0 adds a configurable uptime method:** a domain is UP only when both its DNS (A record) and an HTTP request confirm, or you choose DNS only or HTTP only for every domain. See [Uptime method](#uptime-method).
+> **v6.2 adds a configurable uptime method:** a domain is UP only when both its DNS (A record) and an HTTP request confirm, or you choose DNS only or HTTP only for every domain. See [Uptime method](#uptime-method).
 
 > **v6.1.0 was an audit release.** The code, this README and the landing page were re-checked against what the software really does, several bugs and security gaps were fixed, and a few claims were corrected. See [Audit Notes](#audit-notes-v610).
 
@@ -203,7 +203,7 @@ ASE monitors any list of domains and reports on five signals simultaneously:
 
 | Signal | What it tells you |
 |--------|-------------------|
-| **Uptime** | Does the domain resolve (DNS A record) and does its web server answer (HTTP)? Configurable: DNS only, HTTP only, or both. Latency in ms |
+| **Uptime** | Does the domain resolve (DNS A record) and does its web server answer (HTTP)? Configurable: DNS only, HTTP only, or both. Latency in ms, measured by the same method (see [Uptime method](#uptime-method)) |
 | **SSL Expiry** | When does the certificate expire? Days remaining, colour-coded. Issuer detected (Let's Encrypt, DigiCert, etc.) |
 | **Nameserver Provider** | Who is providing DNS? (Cloudflare, AWS Route53, Azure, Google, SiteGround, custom) |
 | **Mail Provider** | Who handles email? (Google Workspace, Microsoft 365, ProtonMail, Amazon SES, Mimecast, etc.) |
@@ -285,6 +285,16 @@ How the HTTP check works (`http-check.php`, run on your server because browsers 
 - Requests use HEAD and fall back to GET when HEAD is rejected (400, 405, 501). The timeout is 6 seconds.
 - Only public addresses are probed. The hostname is resolved once, validated, and the connection is pinned to that IP (SSRF guard). Sign-in is required; the demo only answers for its watchlist.
 - Results are cached for 2 minutes in `http_cache.json`.
+
+What the latency number means (it follows the method, and the card label says which):
+
+| Method | Latency column and Avg Latency card | Measured by |
+|---|---|---|
+| DNS only | DNS lookup time | Your browser asking Cloudflare DNS-over-HTTPS (the cron script uses the server's resolver) |
+| HTTP only | HTTP response time | Your server: connect, TLS and first response, with the DNS lookup excluded |
+| DNS and HTTP | HTTP response time (DNS lookup time only until the HTTP answer arrives) | Your server |
+
+Requests that fail have no latency (shown as a dash) instead of a timeout value, so they do not distort the average. Hover a latency value to see both the DNS and the HTTP time. The two are measured from different places, so they are not added together. Exports include `Latency (ms)`, `DNS (ms)` and `HTTP (ms)`.
 
 Things to know:
 
@@ -2175,6 +2185,10 @@ Full history with technical change notes.
 ### v6.2.0 — 2026-11-11 — Configurable uptime method
 
 UP can now be based on DNS (A record), HTTP, or both, chosen once for all domains. The default is both, which changes what UP means compared with 6.1 (see [Uptime method](#uptime-method)). New `http-check.php`, a Settings dialog, a DNS / HTTP / Both switch above the table, a "DNS ✓ · HTTP 200" line under every status, DNS and HTTP columns in the CSV/JSON exports, and `update-stats.php` honours the same method. Also fixes `domains.stats`, whose header and rows did not line up.
+
+### v6.2.1 — 2026-11-12 — Latency follows the uptime method
+
+Fixes a mismatch in 6.2.0: switching from HTTP to Both kept the HTTP number but relabelled the card "DNS resolve". Latency now always matches the method and its label, failed probes no longer count as latency, hovering a value shows both the DNS and HTTP times, and CSV/JSON exports add `DNS (ms)` and `HTTP (ms)`. `update-stats.php` applies the same rule.
 
 ### v6.1.1 — 2026-11-02 — Docs and polish
 

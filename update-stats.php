@@ -56,7 +56,7 @@ define('MAX_DOMAINS',   200);   // safety cap — prevents runaway cron
 define('NOTIFY_PHP',    __DIR__ . '/notify.php');   // email notification endpoint
 define('CONFIG_FILE',   __DIR__ . '/ase_config.json'); // settings (for notification check)
 define('NOTIFY_SENT',   __DIR__ . '/cron_notify_sent.json'); // deduplication tracker
-define('VERSION', '6.2.0');
+define('VERSION', '6.2.1');
 define('UPTIME_FILE',   __DIR__ . '/uptime.json');  // persistent uptime history
 
 require_once __DIR__ . '/_ase.php';
@@ -327,9 +327,13 @@ foreach ($domains as $rank => $domain) {
 
     // ── A record: uptime check ──
     $aRecords = dns_query($domain, DNS_A);
-    $latencyMs = round((microtime(true) - $t0) * 1000);
+    $dnsMs     = (int)round((microtime(true) - $t0) * 1000);
     $dnsUp     = !empty($aRecords);
     $probe     = $httpProbe[strtolower($domain)] ?? null;
+    $httpMs    = ($probe && !empty($probe['ok']) && isset($probe['ms'])) ? (int)$probe['ms'] : null;
+    // Latency follows the uptime method (same rule as the dashboard):
+    //   dns -> DNS lookup time; http and both -> HTTP response time (failed probes have none)
+    $latencyMs = $checkMode === 'dns' ? ($dnsUp ? $dnsMs : null) : $httpMs;
     $httpUp    = $probe ? (bool)$probe['ok'] : null;
     $httpCode  = $probe['status'] ?? null;
     $isUp      = $checkMode === 'dns' ? $dnsUp : ($checkMode === 'http' ? ($httpUp === true) : ($dnsUp && $httpUp === true));
@@ -382,7 +386,8 @@ foreach ($domains as $rank => $domain) {
         'dns_up'     => $dnsUp,
         'http_up'    => $httpUp,
         'http_status'=> $httpCode,
-        'http_ms'    => $probe['ms'] ?? null,
+        'http_ms'    => $httpMs,
+        'dns_ms'     => $dnsMs,
         'latency_ms' => $latencyMs,
         'ns'         => $nsProvider,
         'ns_raw'     => $nsRaw,
@@ -397,7 +402,7 @@ foreach ($domains as $rank => $domain) {
         'timestamp'  => $timestamp,
     ];
 
-    log_line("       → $status (DNS " . ($dnsUp ? 'ok' : 'fail') . ($checkMode === 'dns' ? '' : ' / HTTP ' . ($httpCode ?: 'fail')) . ") | {$latencyMs}ms | SSL=" . ($sslExpiry ?: '—') . " ($sslIssuer) | NS=$nsProvider | MX=$mxProvider | DMARC=$dmarc | SPF=" . ($spf ?: '—'));
+    log_line("       → $status (DNS " . ($dnsUp ? 'ok' : 'fail') . ($checkMode === 'dns' ? '' : ' / HTTP ' . ($httpCode ?: 'fail')) . ") | " . ($latencyMs === null ? '—' : $latencyMs . 'ms') . " | SSL=" . ($sslExpiry ?: '—') . " ($sslIssuer) | NS=$nsProvider | MX=$mxProvider | DMARC=$dmarc | SPF=" . ($spf ?: '—'));
 }
 
 log_line('');
@@ -411,7 +416,7 @@ log_line('');
  * CSV format matches what the browser's "Export CSV" button produces,
  * so the file can be opened in Excel / Google Sheets directly.
  */
-$csvHeaders = ['Timestamp','Rank','Domain','Status','DNS','HTTP','HTTP Status','Latency (ms)',
+$csvHeaders = ['Timestamp','Rank','Domain','Status','DNS','HTTP','HTTP Status','Latency (ms)','DNS (ms)','HTTP (ms)',
                'SSL Expiry','SSL Issuer',
                'NS Provider','NS Records','MX Provider','MX Records',
                'DMARC','DMARC Record','SPF','SPF Record'];
@@ -427,7 +432,9 @@ foreach ($results as $r) {
         $r['dns_up'] ? 'ok' : 'fail',
         $r['http_up'] === null ? '' : ($r['http_up'] ? 'ok' : 'fail'),
         (string)($r['http_status'] ?? ''),
-        (string)$r['latency_ms'],
+        (string)($r['latency_ms'] ?? ''),
+        (string)($r['dns_ms'] ?? ''),
+        (string)($r['http_ms'] ?? ''),
         $r['ssl_expiry'],
         $r['ssl_issuer'],
         $r['ns'],

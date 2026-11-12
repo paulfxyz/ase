@@ -50,7 +50,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="app.css?v=6.2.0">
+    <link rel="stylesheet" href="app.css?v=6.2.1">
 </head>
 <body>
 <div class="demo-banner" id="demo-banner" role="note">
@@ -292,7 +292,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
   <div class="stat-card">
     <div class="stat-label">Avg Latency</div>
     <div class="stat-value" id="stat-latency" style="color:var(--teal)">—</div>
-    <div class="stat-sub" id="stat-latency-sub">DNS resolve</div>
+    <div class="stat-sub" id="stat-latency-sub">HTTP response</div>
   </div>
 </div>
 
@@ -347,7 +347,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
         <th>#</th>
         <th>Domain</th>
         <th>Status</th>
-        <th>Latency</th>
+        <th id="th-latency" title="Latency = HTTP response time measured by your server (DNS lookup time only until HTTP answers). Hover a value to see both.">Latency</th>
         <th>SSL Expiry</th>
         <th>NS Provider</th>
         <th>MX</th>
@@ -405,7 +405,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
 ═════════════════════════════════════════════════════════════ -->
 <footer>
   <span>
-    <strong>ASE</strong> <span class="ver-tag">v6.2.0</span> — open-source monitor
+    <strong>ASE</strong> <span class="ver-tag">v6.2.1</span> — open-source monitor
     &nbsp;·&nbsp;
     <span class="mit-tag">MIT</span>
     &nbsp;·&nbsp;
@@ -419,7 +419,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
 <!-- ════════════════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════════════════ -->
-<script src="app.js?v=6.2.0"></script>
+<script src="app.js?v=6.2.1"></script>
 
 <!-- ════════════════════════════════════════════════════════════
      WEBHOOK MODAL
@@ -441,6 +441,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
         <span><strong>DNS and HTTP (recommended)</strong><small>UP only when both confirm. A domain whose DNS works but whose server is down shows DOWN.</small></span></label>
       <p class="set-note" id="mode-note"></p>
       <p class="set-note">The HTTP probe runs on your server (browsers cannot read status codes from other sites), follows no redirects and ignores certificate errors, because the SSL column reports expiry. Uptime history records whichever method was active at the time.</p>
+      <p class="set-note"><strong>Latency</strong> follows the method: DNS only shows the DNS lookup time; HTTP only and Both show the HTTP response time measured by your server (connect, TLS and first response). Hover a value to see both numbers. Requests that fail have no latency.</p>
     </div>
     <div class="modal-footer">
       <button onclick="closeSettingsModal()" class="btn" style="width:100%">Close</button>
@@ -511,7 +512,7 @@ if (window.ASE_DEMO) document.documentElement.classList.add('demo');
 
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4)">
         <div style="font-weight:700;font-size:var(--text-sm);margin-bottom:var(--space-2)">🌐 DNS Checks</div>
-        <div style="font-size:var(--text-xs);color:var(--text-muted);line-height:1.7">Each domain is queried via <a href="https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/" target="_blank" style="color:var(--accent)">Cloudflare DoH</a> (HTTPS, no CORS issues). An A-record response = online. Latency = full round-trip time. Auto-refreshes every 3 minutes.</div>
+        <div style="font-size:var(--text-xs);color:var(--text-muted);line-height:1.7">Each domain is queried via <a href="https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/" target="_blank" style="color:var(--accent)">Cloudflare DoH</a> (HTTPS, no CORS issues). An A-record response = online. Latency depends on the uptime method: DNS lookup time (DNS only) or HTTP response time measured by your server (HTTP only, and Both). Auto-refreshes every 3 minutes.</div>
       </div>
 
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4)">
